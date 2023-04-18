@@ -1,0 +1,8 @@
+python-telegram-bot==13.7
+aiogram
+nest-asyncio
+aioschedule
+openai
+article-parser
+tiktoken
+html2text
