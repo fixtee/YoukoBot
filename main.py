@@ -14,8 +14,6 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
-print('initial')
-
 bot = Bot(os.environ['bot_token'])
 bot.set_current(bot)
 openai.api_key = os.environ['openai_token']
