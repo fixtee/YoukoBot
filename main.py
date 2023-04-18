@@ -14,7 +14,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
-Print('initial')
+print('initial')
 
 bot = Bot(os.environ['bot_token'])
 bot.set_current(bot)
