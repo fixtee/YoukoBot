@@ -9,11 +9,11 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 app = Flask('')
 app.wsgi_app = ProxyFix(app.wsgi_app)
 
-@app.after_request
-def log_response(response):
-  now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
-  print(f"\033[38;2;46;149;211m{now.strftime('%d.%m.%Y %H:%M:%S')} | {request.remote_addr} | {request.method} | {response.status_code}\033[0m")
-  return response
+#@app.after_request
+#def log_response(response):
+#  now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
+#  print(f"\033[38;2;46;149;211m{now.strftime('%d.%m.%Y %H:%M:%S')} | {request.remote_addr} | {request.method} | {response.status_code}\033[0m")
+#  return response
 
 @app.route('/')
 def home():
