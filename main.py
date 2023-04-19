@@ -76,7 +76,7 @@ async def default_message_handler(message: types.Message, role: str="user"):
           parser_option = params['parser_option']
           orig_url = params['orig_url']
           article_text = await url_article_parser(url=url, parser_option=parser_option, orig_url=orig_url)
-          content = content.replace(f'parser_option{parser_option}', '')
+          content = content.replace(f'parser_option{parser_option}', '').strip()
           content = content.replace('orig_url', '').strip()
           if article_text != '':
             content = content.replace(url, '')
@@ -92,7 +92,7 @@ async def default_message_handler(message: types.Message, role: str="user"):
             parser_option = params['parser_option']
             orig_url = params['orig_url']
             article_text = await url_article_parser(url=url, parser_option=parser_option, orig_url=orig_url)
-            content = content.replace(f'parser_option{parser_option}', '')
+            content = content.replace(f'parser_option{parser_option}', '').strip()
             content = content.replace('orig_url', '').strip()
             if article_text != '':
               url_yes = True
