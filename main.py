@@ -7,6 +7,7 @@ import nest_asyncio
 import openai
 import pickle
 import tiktoken
+import aiogram.utils.exceptions
 from background import keep_alive
 from aiogram import Bot, Dispatcher, types
 from parser import url_article_parser, get_parser_params
@@ -364,9 +365,12 @@ async def send_poll(message: types.Message):
   poll_message = await bot.send_poll(chat_id, poll_question, options=options, is_anonymous=False, allows_multiple_answers=True)
   text = '❗️Голосование длится максимум 1 час или до получения 3 голосов.\nМожно выбрать несколько вариантов ответа.\nДля подтверждения ввода обязательно нажать <b>VOTE</b>.'
   await message.answer(text, parse_mode="HTML")
-  await asyncio.sleep(waiting_time)
-  if not bot.get_poll(chat_id=chat_id, message_id=poll_message.message_id).is_closed:
+  await asyncio.sleep(10)
+  await bot.stop_poll(chat_id, poll_message.message_id)
+  try:
     await bot.stop_poll(chat_id, poll_message.message_id)
+  except aiogram.utils.exceptions.PollHasAlreadyBeenClosed:
+    pass
 
 @dp.poll_handler(lambda closed_poll: closed_poll.is_closed is True)
 async def poll_results(closed_poll: types.Poll):
@@ -408,11 +412,13 @@ async def poll_results(closed_poll: types.Poll):
 @dp.poll_answer_handler(lambda poll_answer: True)
 async def poll_answer(poll_answer: types.PollAnswer):
   global chat_id
-  global poll_message
+  global poll_is_closed
+  global poll_status
   global total_answers
   total_answers += 1
   if total_answers == 3:
     await bot.stop_poll(chat_id, poll_message.message_id)
+    poll_is_closed = True
     total_answers = 0
 
 async def unpin_poll_results():
@@ -558,7 +564,7 @@ async def main():
     await schedule_jobs(message, silent_mode=True)
   job_loop = asyncio.get_event_loop()
   job_loop.create_task(run_scheduled_jobs())
-  await dp.start_polling(allowed_updates=False, timeout=30)
+  await dp.start_polling()
 
 if __name__ == '__main__':
   keep_alive()
