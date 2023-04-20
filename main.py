@@ -33,7 +33,7 @@ class AgendaDelete(StatesGroup):
   
 dp = Dispatcher(bot, storage=storage)
 chat_id = 0
-poll_message = 0
+poll_message = None
 pinned_message_id = 0
 total_answers = 0
 PollingJob = False
@@ -223,7 +223,7 @@ async def gpt_clear(message: types.Message, silent_mode=False):
     await message.answer(text, parse_mode="HTML")
     
 @dp.message_handler(commands=['gpt_clear_all'])
-async def gpt_clear_all():
+async def gpt_clear_all(message: types.Message=None):
   global conversations
   conversations = {}
   await file_write()
@@ -465,7 +465,8 @@ async def schedule_start(message: types.Message):
 @dp.message_handler(commands=['schedule_check'])
 async def schedule_check(message: types.Message):
   global PollingJob
-  if PollingJob == True:
+  global JobActive
+  if PollingJob:
     text = '❗️Опрос по расписанию активен'
     moscow_tz = pytz.timezone('Europe/Moscow')
     utc_time = aioschedule.jobs[0].next_run  #Опрос всегда первый в списке для упрощения
@@ -475,7 +476,11 @@ async def schedule_check(message: types.Message):
     await message.answer(text, parse_mode="HTML")
   else:
     text = '❗️Опрос по расписанию неактивен'
-    await message.answer(text, parse_mode="HTML")
+  if JobActive:
+    text += '\n❗️Плановые задачи выполняются'
+  else:
+    text += '\n❗️Плановые задачи остановлены'
+  await message.answer(text, parse_mode="HTML")
     
 @dp.message_handler(commands=['schedule_stop'])
 async def schedule_stop(message: types.Message):
