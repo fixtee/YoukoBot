@@ -365,8 +365,7 @@ async def send_poll(message: types.Message):
   poll_message = await bot.send_poll(chat_id, poll_question, options=options, is_anonymous=False, allows_multiple_answers=True)
   text = '❗️Голосование длится максимум 1 час или до получения 3 голосов.\nМожно выбрать несколько вариантов ответа.\nДля подтверждения ввода обязательно нажать <b>VOTE</b>.'
   await message.answer(text, parse_mode="HTML")
-  await asyncio.sleep(10)
-  await bot.stop_poll(chat_id, poll_message.message_id)
+  await asyncio.sleep(waiting_time)
   try:
     await bot.stop_poll(chat_id, poll_message.message_id)
   except aiogram.utils.exceptions.PollHasAlreadyBeenClosed:
