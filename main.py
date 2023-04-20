@@ -425,6 +425,7 @@ async def unpin_poll_results():
   global pinned_message_id
   if pinned_message_id != 0:
     await bot.unpin_chat_message(chat_id=chat_id, message_id=pinned_message_id)
+    pinned_message_id = 0
   now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
   print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'unpin_poll_results' is completed\033[0m")
   
