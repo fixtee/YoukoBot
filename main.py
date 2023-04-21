@@ -569,7 +569,7 @@ async def main():
     await schedule_jobs(message, silent_mode=True)
   job_loop = asyncio.get_event_loop()
   job_loop.create_task(run_scheduled_jobs())
-  await dp.start_polling()
+  await dp.start_polling(timeout=30)
 
 if __name__ == '__main__':
   keep_alive()
