@@ -58,7 +58,7 @@ async def default_message_handler(message: types.Message, role: str="user"):
   parser_option = 1
   orig_url = False
 
-  if message.chat.type == types.ChatType.GROUP and role != "system":
+  if (message.chat.type == types.ChatType.GROUP or message.chat.type == types.ChatType.SUPERGROUP) and role != "system":
     if bot_details.username in message.text:
       content = message.text.replace(f'@{bot_details.username}', '').strip()
     else:
@@ -452,7 +452,7 @@ async def schedule_start(message: types.Message):
   global JobActive
   global chat_id
   
-  if message.chat.type == types.ChatType.GROUP:
+  if message.chat.type == types.ChatType.GROUP or message.chat.type == types.ChatType.SUPERGROUP:
     chat_id = message.chat.id
     PollingJob = True
     JobActive = True
