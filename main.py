@@ -473,7 +473,6 @@ async def schedule_check(message: types.Message):
     moscow_time = utc_time.astimezone(moscow_tz)
     time_str = moscow_time.strftime('%Y-%m-%d %H:%M:%S')
     text += f'\nСледующий опрос состоится <b>{time_str} MSK</b>'
-    await message.answer(text, parse_mode="HTML")
   else:
     text = '❗️Опрос по расписанию неактивен'
   if JobActive:
