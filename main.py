@@ -13,7 +13,7 @@ from aiogram import Bot, Dispatcher, types
 from parser import url_article_parser, get_parser_params
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.types.message import ContentType
+from aiogram.types.message import ContentType 
 
 bot = Bot(os.environ['bot_token'])
 openai.api_key = os.environ['openai_token']
