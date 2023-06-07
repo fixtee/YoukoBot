@@ -41,7 +41,7 @@ user_not_found = '❗️Пользователь не найден. Пожалу
 group_not_allowed = '❗️Запуск этого бота в групповом чате не разрешен'
 bots_not_allowed = '❗️Данный бот не работает в личном чате с другими ботами'
 user_banned = '❗️Данный пользователь заблокирован'
-test_not_allowed = '❗️Это тестовый бот. Работа с ним не разрешена. Пожалуйста, используйте @Notifikat_assist_bot'
+test_not_allowed = '❗️Это тестовый бот. Работа с ним ограничена. Пожалуйста, используйте @Notifikat_assist_bot'
 value_conversion = 'конвертация значения параметра'
 attribute_type = 'тип параметра'
 attribute_value = 'значение параметра'
@@ -217,9 +217,10 @@ async def find_user(message, skip_check=False, is_start=False):
       await message.answer(bots_not_allowed, parse_mode="HTML")
       return None, bots_not_allowed
 
-  if is_test == 1 and (message.from_user.id not in allowed_test_chats or message.from_user.id != admin_chat_id):
-    await message.answer(test_not_allowed, parse_mode="HTML")
-    return
+  if is_test == 1:
+    if message.from_user.id not in allowed_test_chats and message.from_user.id != admin_chat_id:
+      await message.answer(test_not_allowed, parse_mode="HTML")
+      return None, test_not_allowed
     
   user = users.get(message.from_user.id)
   if not user:
@@ -935,11 +936,11 @@ async def send_invoice(message: types.Message, num_days: int):
                          title=f"Подписка на {num_days} дней",
                          description=f"Активация платной подписки Notifikat Bot на {num_days} дней",
                          provider_token=payments_token,
-                         currency="rub",
-                         photo_url="https://i.postimg.cc/NFR16mGX/2023-05-25-18-46-15.jpg",
-                         photo_width=365,
-                         photo_height=228,
-                         photo_size=365,
+                         currency="RUB",
+                         #photo_url="https://i.postimg.cc/NFR16mGX/2023-05-25-18-46-15.jpg",
+                         #photo_width=365,
+                         #photo_height=228,
+                         #photo_size=365,
                          is_flexible=False,
                          prices=[price],
                          start_parameter=f"{num_days}-days-subscription",
