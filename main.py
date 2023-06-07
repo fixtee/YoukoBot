@@ -47,7 +47,6 @@ attribute_type = 'тип параметра'
 attribute_value = 'значение параметра'
 empty_message = 'пустое сообщение'
 
-
 class TelegramUser:
   def __init__(self, username, first_name, last_name, user_id, chat_id):
     self.username = username
