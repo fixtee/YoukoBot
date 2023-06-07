@@ -6,6 +6,7 @@ import aioschedule
 import nest_asyncio
 import openai
 import pickle
+import tarfile
 import tiktoken
 import shutil
 from background import keep_alive
@@ -282,6 +283,15 @@ async def file_read():
       payments_data = pickle.load(f)
     payments = payments_data["payments"]
 
+async def create_tar_gz_archive(output_file_path, files):
+  with tarfile.open(output_file_path, 'w:gz') as tar:
+    for file in files:
+      tar.add(file, arcname=file)
+
+async def unarchive_gzip_tar(gzip_file, extract_path):
+  with tarfile.open(gzip_file, 'r:gz') as tar:
+    tar.extractall(extract_path)
+          
 async def file_write(users=None, payments=None):
   global users_file
   global users_data
@@ -314,30 +324,79 @@ async def file_init():
     with open(payments_file, 'wb') as f:
       pickle.dump(payments_data, f)
 
-async def file_backup():
+async def file_delete(files_to_delete):
+  for file in files_to_delete:
+    try:
+      os.remove(file)
+    except OSError as e:
+      now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
+      print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Error occurred while deleting the file '{file}': {e}\033[0m")
+  
+@dp.message_handler(commands=['backup_123'])
+async def file_backup(message: types.Message=None, job=False):
   global users_file
   global payments_file
-  now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
-  timestr = now.strftime('%Y%m%d')
-  source_file = users_file
-  backup_file = os.path.join("backup", f"{os.path.splitext(source_file)[0]}_{timestr}.pkl")
-  print("backup job running")
-  try:
-    shutil.copyfile(source_file, backup_file)
-    print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Backup file {backup_file} was created successfully\033[0m")
-  except:
-    print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {backup_file}\033[0m")
+  files_to_archive = []
 
-  source_file = payments_file
-  backup_file = os.path.join("backup", f"{os.path.splitext(source_file)[0]}_{timestr}.pkl")
+  if not job:
+    command = 'backup_123'
+    error_code = await check_authority(message, command)
+    if error_code != 0:
+      return
+  
+    current_user, error_msg = await find_user(message, skip_check=True)
+    if not current_user:
+      return
+    
+  now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
+
+  backup_file = os.path.join("backup", f"{users_file}")
+  files_to_archive.append(backup_file)
   try:
-    shutil.copyfile(source_file, backup_file)
-    print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Backup file {backup_file} was created successfully\033[0m")
+    shutil.copyfile(users_file, backup_file)
   except:
     print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {backup_file}\033[0m")
+    pass
+
+  backup_file = os.path.join("backup", f"{payments_file}")
+  files_to_archive.append(backup_file)
+  try:
+    shutil.copyfile(payments_file, backup_file)
+  except:
+    print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {backup_file}\033[0m")
+    pass
+  timestr = now.strftime('%Y%m%d')
+  output_archive = os.path.join("backup", f"backup_{timestr}.tar.gz")
+  try:
+    await create_tar_gz_archive(output_archive, files_to_archive)
+    print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Backup file {output_archive.split('/')[1]} was created successfully\033[0m")
+    await file_delete(files_to_archive)
+  except:
+    print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {output_archive}\033[0m")
+    pass
+
+  if not job:
+    text = f"❗️Админ {current_user.user_id} ({current_user.username}) запустил резервное копирование в ручном режиме"    
+    await msg2admin(text)
+
+@dp.message_handler(commands=['unpack_123'])
+async def file_unpack(message: types.Message=None):
+
+  command = 'unpack_123'
+  error_code = await check_authority(message, command)
+  if error_code != 0:
+    return
+  
+  current_user, error_msg = await find_user(message, skip_check=True)
+  if not current_user:
+    return
     
+  archive_file = os.path.join("backup", "backup.tar.gz")
+  extracted_files = ""
+  await unarchive_gzip_tar(archive_file, extracted_files)
+  
 async def maintenance_job():
-  aioschedule.every().day.at('20:59').do(file_backup)
+  aioschedule.every().day.at('20:59').do(file_backup, job=True)
   aioschedule.every().day.at('21:00').do(daily_reset)
    
 async def schedule_jobs():
