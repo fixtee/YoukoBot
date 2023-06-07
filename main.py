@@ -828,7 +828,7 @@ async def get_stats(message: types.Message=None):
     mp_days = mp_delta.days + 1
     if mp_days != 0:
       mp_avg = mp_num / mp_days
-      text += f'\n👉 В среднем <b>{mp_avg}</b> запросов в день за <b>{mp_days}</b> дней активности'
+      text += f'\n👉 В среднем <b>{mp_avg:.2f}</b> запросов в день за <b>{mp_days}</b> дней активности'
 
   if mt_userid !=0:
     text += f'\n\n👉 Максимальное количество токенов у {mt_userid} ({mt_username}): <b>{mt_num}</b>'
@@ -836,7 +836,7 @@ async def get_stats(message: types.Message=None):
     mt_days = mt_delta.days + 1
     if mt_days != 0:
       mt_avg = mt_num / mt_days
-      text += f'\n👉 В среднем <b>{mt_avg}</b> токенов за <b>{mt_days}</b> дней активности'
+      text += f'\n👉 В среднем <b>{mt_avg:.2f}</b> токенов за <b>{mt_days}</b> дней активности'
       
   await msg2admin(text)
 
