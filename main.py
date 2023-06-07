@@ -21,6 +21,8 @@ openai.api_key = os.environ['openai_token']
 payments_token = os.environ['payments_token']
 allowed_group_chats = [int(os.environ['allowed_group_1']), int(os.environ['allowed_group_2']), int(os.environ['allowed_group_3'])]
 admin_chat_id = int(os.environ['admin_chat_id'])
+is_test = int(os.environ['is_test'])
+allowed_test_chats = [int(os.environ['allowed_test_1']), int(os.environ['allowed_test_2']), int(os.environ['allowed_test_3'])]
 
 bot.set_current(bot)
 nest_asyncio.apply()
@@ -39,10 +41,12 @@ user_not_found = '❗️Пользователь не найден. Пожалу
 group_not_allowed = '❗️Запуск этого бота в групповом чате не разрешен'
 bots_not_allowed = '❗️Данный бот не работает в личном чате с другими ботами'
 user_banned = '❗️Данный пользователь заблокирован'
+test_not_allowed = '❗️Это тестовый бот. Работа с ним не разрешена. Пожалуйста, используйте @Notifikat_assist_bot'
 value_conversion = 'конвертация значения параметра'
 attribute_type = 'тип параметра'
 attribute_value = 'значение параметра'
 empty_message = 'пустое сообщение'
+
 
 class TelegramUser:
   def __init__(self, username, first_name, last_name, user_id, chat_id):
@@ -213,6 +217,10 @@ async def find_user(message, skip_check=False, is_start=False):
       await message.answer(bots_not_allowed, parse_mode="HTML")
       return None, bots_not_allowed
 
+  if is_test == 1 and (message.from_user.id not in allowed_test_chats or message.from_user.id != admin_chat_id):
+    await message.answer(test_not_allowed, parse_mode="HTML")
+    return
+    
   user = users.get(message.from_user.id)
   if not user:
     if not is_start:
@@ -914,7 +922,7 @@ async def send_invoice(message: types.Message, num_days: int):
     return
     
   if payments_token.split(':')[1] == 'TEST':
-      await bot.send_message(current_user.chat_id, "❗️Тестовый платеж!!!")
+      await bot.send_message(current_user.chat_id, "❗️Платежная система работает в тестовом режиме!!! Использовать только данные тестовой карты!!!")
 
   if num_days == 30:
     price = types.LabeledPrice(label="Подписка на 30 дней", amount=100*100)
