@@ -4,7 +4,9 @@
 replit.nix
 poetry.lock
 pyproject.toml
-saved_data.pkl
+users.pkl
+payments.pkl
+backup/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
