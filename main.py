@@ -9,6 +9,7 @@ import pickle
 import tarfile
 import tiktoken
 import shutil
+import json
 from background import keep_alive
 from aiogram import Bot, Dispatcher, types
 from parser import url_article_parser, get_parser_params
@@ -30,12 +31,17 @@ storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 temperature = 0.1
 users_file = 'users.pkl'
-users_data = None
 users = {}
 payments_file = 'payments.pkl'
-payments_data = None
 payments = {}
+orders_file = 'orders.pkl'
+orders = {}
+last_invoice_num = 100
+last_invoice_date = None
 bot_details = None
+price30 = 100
+price90 = 270
+price180 = 500
 
 user_not_found = '❗️Пользователь не найден. Пожалуйста, запустите команду /start'
 group_not_allowed = '❗️Запуск этого бота в групповом чате не разрешен'
@@ -266,31 +272,6 @@ async def get_menu(level=1, current_user=None):
   keyboard.add(button4)
   return text, keyboard
 
-async def file_read():
-  global users_file
-  global users_data
-  global payments_file
-  global payments_data
-  global users
-  global payments
-
-  if os.path.exists(users_file) and os.path.getsize(users_file) > 0:
-    with open(users_file, 'rb') as f:
-      users_data = pickle.load(f)
-    users = users_data["users"]
-
-  # Initialize new fields in existing TelegramUser objects
-  for user in users.values():
-    if not hasattr(user, 'is_moderated'):
-     user.is_moderated = True
-     await update_users(user)
-  await file_write(users)
-
-  if os.path.exists(payments_file) and os.path.getsize(payments_file) > 0:
-    with open(payments_file, 'rb') as f:
-      payments_data = pickle.load(f)
-    payments = payments_data["payments"]
-
 async def create_tar_gz_archive(output_file_path, files):
   with tarfile.open(output_file_path, 'w:gz') as tar:
     for file in files:
@@ -299,28 +280,58 @@ async def create_tar_gz_archive(output_file_path, files):
 async def unarchive_gzip_tar(gzip_file, extract_path):
   with tarfile.open(gzip_file, 'r:gz') as tar:
     tar.extractall(extract_path)
+    
+async def file_read():
+  global users
+  global payments
+  global orders
+  global last_invoice_num
+  global last_invoice_date
+
+  if os.path.exists(users_file) and os.path.getsize(users_file) > 0:
+    with open(users_file, 'rb') as f:
+      users_data = pickle.load(f)
+    users = users_data["users"]
+
+  # Initialize new fields in existing TelegramUser objects
+#  for user in users.values():
+#    if not hasattr(user, 'is_moderated'):
+#     user.is_moderated = True
+#     await update_users(user)
+#  await file_write(write_users=True)
+
+  if os.path.exists(payments_file) and os.path.getsize(payments_file) > 0:
+    with open(payments_file, 'rb') as f:
+      payments_data = pickle.load(f)
+    payments = payments_data["payments"]
+
+  if os.path.exists(orders_file) and os.path.getsize(orders_file) > 0:
+    with open(orders_file, 'rb') as f:
+      orders_data = pickle.load(f)
+    orders = orders_data["orders"]
+    last_invoice_num = orders_data["last_invoice_num"]
+    last_invoice_date = orders_data["last_invoice_date"]
           
-async def file_write(users=None, payments=None):
-  global users_file
-  global users_data
-  global payments_file
-  global payments_data
+async def file_write(write_users=False, write_payments=False, write_orders=False):
   
-  if users and os.path.exists(users_file):
+  if write_users and users and os.path.exists(users_file):
     users_data = {"users": users}
     with open(users_file, 'wb') as f:
       pickle.dump(users_data, f)
 
-  if payments and os.path.exists(payments_file):
+  if write_payments and payments and os.path.exists(payments_file):
     payments_data = {"payments": payments}
     with open(payments_file, 'wb') as f:
       pickle.dump(payments_data, f)
 
+  if write_orders and orders and os.path.exists(orders_file):
+    orders_data = {"orders": orders,
+                   "last_invoice_num": last_invoice_num,
+                   "last_invoice_date": last_invoice_date}
+    with open(orders_file, 'wb') as f:
+      pickle.dump(orders_data, f)
+
 async def file_init():
-  global users_file
-  global users_data
-  global payments_file
-  global payments_data
     
   if os.path.exists(users_file) and os.path.getsize(users_file) == 0:
     users_data = {"users": {}}
@@ -332,6 +343,13 @@ async def file_init():
     with open(payments_file, 'wb') as f:
       pickle.dump(payments_data, f)
 
+  if os.path.exists(orders_file) and os.path.getsize(orders_file) == 0:
+    orders_data = {"orders": {},
+                   "last_invoice_num": 100,
+                   "last_invoice_date": None}
+    with open(orders_file, 'wb') as f:
+      pickle.dump(orders_data, f)
+
 async def file_delete(files_to_delete):
   for file in files_to_delete:
     try:
@@ -342,8 +360,7 @@ async def file_delete(files_to_delete):
   
 @dp.message_handler(commands=['backup_123'])
 async def file_backup(message: types.Message=None, job=False):
-  global users_file
-  global payments_file
+
   files_to_archive = []
 
   if not job:
@@ -373,6 +390,15 @@ async def file_backup(message: types.Message=None, job=False):
   except:
     print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {backup_file}\033[0m")
     pass
+
+  backup_file = os.path.join("backup", f"{orders_file}")
+  files_to_archive.append(backup_file)
+  try:
+    shutil.copyfile(orders_file, backup_file)
+  except:
+    print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {backup_file}\033[0m")
+    pass
+    
   timestr = now.strftime('%Y%m%d')
   output_archive = os.path.join("backup", f"backup_{timestr}.tar.gz")
   try:
@@ -441,7 +467,7 @@ async def start_command_handler(message: types.Message):
   else:
     return
   await update_users(current_user)
-  await file_write(users)
+  await file_write(write_users=True)
 
   text, keyboard = await get_menu(1, current_user)
   await message.answer(text, parse_mode="HTML", reply_markup=keyboard)
@@ -488,7 +514,7 @@ async def reset_user(message: types.Message=None):
     return   
 
   await update_users(target_user)
-  await file_write(users)
+  await file_write(write_users=True)
   text = f"❗️Админ {current_user.user_id} ({current_user.username}) сбросил настройку <b>{what}</b> пользователя {target_user.user_id} ({target_user.username})"
   await msg2admin(text)
 
@@ -522,7 +548,7 @@ async def set_paid(message: types.Message=None):
     
   await target_user.set_me_paid(True, num_days)
   await update_users(target_user)
-  await file_write(users)
+  await file_write(write_users=True)
   text = f"❗️Админ {current_user.user_id} ({current_user.username}) установил для пользователя {target_user.user_id} ({target_user.username}) подписку на {num_days} дней"
   await msg2admin(text)
 
@@ -552,7 +578,7 @@ async def delete_user(message: types.Message=None):
   target_user, error_msg = await find_user(message, skip_check=True)
   if target_user: 
     del users[user_id]
-    await file_write(users)
+    await file_write(write_users=True)
     text = f"❗️Админ {current_user.user_id} ({current_user.username}) удалил пользователя {target_user.user_id} ({target_user.username})"
     await msg2admin(text)
 
@@ -575,7 +601,7 @@ async def reset_all(message: types.Message=None):
     if target_user:
       await target_user.reset_conversation()
       await update_users(target_user)
-  await file_write(users)
+  await file_write(write_users=True)
   text = f"❗️Админ {current_user.user_id} ({current_user.username}) выполнил ручной сброс истории переписки с ботом для всех пользователей"
   await msg2admin(text)
 
@@ -637,7 +663,7 @@ async def moderate_all(message: types.Message=None):
     if target_user:
       await target_user.moderate_me(status)
       await update_users(target_user)
-  await file_write(users)
+  await file_write(write_users=True)
   if status == 0:
     text = f"❗️Админ {current_user.user_id} ({current_user.username}) убрал ограничения разговора для всех пользователей"
   else:
@@ -696,7 +722,7 @@ async def change_status(message: types.Message=None):
     return    
   
   await update_users(target_user)
-  await file_write(users)
+  await file_write(write_users=True)
 
   await msg2admin(text)
 
@@ -852,7 +878,7 @@ async def daily_reset(message: types.Message=None):
     if target_user:
       await target_user.reset_check()
       await update_users(target_user)
-  await file_write(users)
+  await file_write(write_users=True)
   now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
   print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Daily Reset' is completed\033[0m")
   
@@ -869,9 +895,9 @@ async def get_subscription(message: types.Message, from_menu=False):
   if not current_user:
     return
     
-  button1 = InlineKeyboardButton(text='Подписка на 30 дней - 100 руб.', callback_data='sub30')
-  button2 = InlineKeyboardButton(text='Подписка на 90 дней - 250 руб.', callback_data='sub90')
-  button3 = InlineKeyboardButton(text='Подписка на 180 дней - 450 руб.', callback_data='sub180')
+  button1 = InlineKeyboardButton(text=f'Подписка на 30 дней - {price30} руб.', callback_data='sub30')
+  button2 = InlineKeyboardButton(text=f'Подписка на 90 дней - {price90} руб.', callback_data='sub90')
+  button3 = InlineKeyboardButton(text=f'Подписка на 180 дней - {price180} руб.', callback_data='sub180')
   keyboard = InlineKeyboardMarkup().add(button1).add(button2).add(button3)
   
   if from_menu:
@@ -920,20 +946,54 @@ async def send_invoice(message: types.Message, num_days: int):
   current_user, error_msg = await find_user(message)
   if not current_user:
     return
-    
+
+  global last_invoice_num
+  global last_invoice_date
+  global orders
+  
   if payments_token.split(':')[1] == 'TEST':
-      await bot.send_message(current_user.chat_id, "❗️Платежная система работает в тестовом режиме!!! Использовать только данные тестовой карты!!!")
+      await bot.send_message(current_user.chat_id, "❗️Платежная система работает в тестовом режиме!!! Платеж с карты не списывается!!!")
 
   if num_days == 30:
-    price = types.LabeledPrice(label="Подписка на 30 дней", amount=100*100)
+    price = price30
   elif num_days == 90:
-    price = types.LabeledPrice(label="Подписка на 90 дней", amount=250*100)
+    price = price90
   elif num_days == 180:
-    price = types.LabeledPrice(label="Подписка на 180 дней", amount=450*100)
+    price = price180
+  
+  labeled_price = types.LabeledPrice(label=f"Подписка на {num_days} дней", amount=price*100)
+  title = f"Notifikat Bot - Подписка на {num_days} дней"
+  description = f"ТЕСТОВАЯ ОПЕРАЦИЯ ДЛЯ ПРОВЕРКИ ЧЕКА: Активация платной подписки на {num_days} дней"
+
+  now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
+  last_invoice_num += 1
+  last_invoice_date = now.date()
+  provider_data = {
+    "InvoiceId": last_invoice_num,
+    "Receipt": {
+      "sno": "osn",
+      "items": [
+         {
+          "name": description,
+          "quantity": 1,
+          "sum": price,
+          "tax": "none",
+          "payment_method": "full_payment",
+          "payment_object": "service"
+         }
+      ]
+    }
+  }
+
+  provider_data_json = json.dumps(provider_data)
+  
+  key = f"{current_user.user_id}_{now}"
+  orders[key] = provider_data
+  await file_write(write_orders=True)
 
   await bot.send_invoice(current_user.chat_id,
-                         title=f"Подписка на {num_days} дней",
-                         description=f"Активация платной подписки Notifikat Bot на {num_days} дней",
+                         title=title,
+                         description=description,
                          provider_token=payments_token,
                          currency="RUB",
                          #photo_url="https://i.postimg.cc/NFR16mGX/2023-05-25-18-46-15.jpg",
@@ -941,9 +1001,10 @@ async def send_invoice(message: types.Message, num_days: int):
                          #photo_height=228,
                          #photo_size=365,
                          is_flexible=False,
-                         prices=[price],
+                         prices=[labeled_price],
                          start_parameter=f"{num_days}-days-subscription",
-                         payload=f"subscription_{num_days}")
+                         payload=f"subscription_{num_days}",
+                         provider_data=provider_data_json)
 
 # pre-checkout  (must be answered in 10 seconds)
 @dp.pre_checkout_query_handler(lambda query: True)
@@ -957,7 +1018,8 @@ async def successful_payment(message: types.Message):
   current_user, error_msg = await find_user(message)
   if not current_user:
     return  
-    
+
+  global payments
   text = "💰Новый платеж:"
   payment_info = message.successful_payment.to_python()
   now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
@@ -979,7 +1041,7 @@ async def successful_payment(message: types.Message):
         pass
       current_user.total_revenue += revenue
   await update_users(current_user)
-  await file_write(users=users, payments=payments)
+  await file_write(write_users=True, write_payments=True)
   await msg2admin(text)
   text = f"❗️Платеж завершен. Подписка активирована на {num_days} дней (до {current_user.paid_status_expiry.strftime('%d.%m.%Y')})"
   await bot.send_message(current_user.chat_id, text, parse_mode="HTML")
@@ -1151,7 +1213,7 @@ async def default_message_handler(message: types.Message):
     current_user.total_tokens += prompt_len + response_len
     current_user.last_prompt = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
     await update_users(current_user) 
-    await file_write(users)
+    await file_write(write_users=True)
   else: 
     text = f'❗️Ошибка OpenAI API: {gpt_finish_reason}'
     await message.answer(text, parse_mode="HTML")
@@ -1170,7 +1232,7 @@ async def reset_me(message: types.Message):
     return
   await current_user.reset_conversation()
   await update_users(current_user)
-  await file_write(users)
+  await file_write(write_users=True)
   text = '❗️История переписки с ботом очищена'
   await message.answer(text, parse_mode="HTML")
   
