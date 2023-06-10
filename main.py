@@ -963,7 +963,7 @@ async def send_invoice(message: types.Message, num_days: int):
   
   labeled_price = types.LabeledPrice(label=f"Подписка на {num_days} дней", amount=price*100)
   title = f"Notifikat Bot - Подписка на {num_days} дней"
-  description = f"ТЕСТОВАЯ ОПЕРАЦИЯ ДЛЯ ПРОВЕРКИ ЧЕКА: Активация платной подписки на {num_days} дней"
+  description = f"Активация платной подписки на {num_days} дней"
 
   now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
   last_invoice_num += 1
