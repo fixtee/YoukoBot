@@ -6,7 +6,7 @@ poetry.lock
 pyproject.toml
 users.pkl
 payments.pkl
-orders.okl
+orders.pkl
 backup/
 
 # Byte-compiled / optimized / DLL files
