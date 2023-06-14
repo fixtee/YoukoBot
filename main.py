@@ -1234,6 +1234,7 @@ async def check_my_info(message: types.Message, admin=False):
 async def default_message_handler(message: types.Message):
   article_text = []
   parser_option = 1
+  url_yes = False
   orig_url = False
   post_prompt = ' Не оправдывай свои ответы. Если запрос не связан с системным контекстом, то отвечай "Запрос не относится к моей области знаний"'
 
@@ -1277,6 +1278,33 @@ async def default_message_handler(message: types.Message):
               content = content.replace(url, '')
               content += "\n" + article_text
 
+    if message.reply_to_message:
+      if message.reply_to_message.entities is not None:
+        for entity in message.reply_to_message.entities:
+          if entity.type == "url":
+            url = message.reply_to_message.text[entity.offset: entity.offset + entity.length]
+            if url.startswith('http'):
+              params = await get_parser_params(message.text)
+              parser_option = params['parser_option']
+              orig_url = params['orig_url']
+              article_text = await url_article_parser(url=url, parser_option=parser_option, orig_url=orig_url)
+              content = content.replace(f'parser_option{parser_option}', '').strip()
+              content = content.replace('orig_url', '').strip()
+              if article_text != '':
+                url_yes = True
+                content += "\n" + article_text
+                break
+      
+      if not url_yes:
+        if message.reply_to_message.text:
+          reply_to_text = message.reply_to_message.text
+          if bot_details.username in reply_to_text:
+            reply_to_text = reply_to_text.replace(f'@{bot_details.username}', '').strip()
+          if reply_to_text:
+            content += "\n" + reply_to_text
+        elif message.reply_to_message.caption:
+          content += "\n" + message.reply_to_message.caption
+        
   if current_user.is_moderated:
     content += post_prompt
 
