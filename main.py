@@ -169,7 +169,10 @@ class TelegramUser:
         print(
           f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | UserID {self.user_id} | Convestation size is {conversation_len} tokens, thus it will be truncated\033[0m"
         )
-        self.conversation.pop(2)
+        if self.is_moderated:
+          self.conversation.pop(2)
+        else:
+          self.conversation.pop(0)
       else:
         break
 
