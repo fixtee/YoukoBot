@@ -244,7 +244,7 @@ async def find_user(message, skip_check=False, is_start=False):
       await message.answer(bots_not_allowed, parse_mode="HTML")
       return None, bots_not_allowed
 
-  if is_test == 1:
+  if is_test == 1 and not skip_check:
     if message.from_user.id not in allowed_test_chats and message.from_user.id != admin_chat_id:
       await message.answer(test_not_allowed, parse_mode="HTML")
       return None, test_not_allowed
@@ -708,9 +708,13 @@ async def list_users(message: types.Message = None):
       if target_user.last_name:
         fullname += target_user.last_name
       if fullname:
-        text += f'{n}. {target_user.user_id} ({target_user.username}) - {fullname}\n'
+        text += f'{n}. {target_user.user_id} ({target_user.username}) - {fullname}'
       else:
-        text += f'{n}. {target_user.user_id} ({target_user.username})\n'
+        text += f'{n}. {target_user.user_id} ({target_user.username})'
+      if target_user.is_paid:
+        text += ' - 💎\n'
+      else:
+        text += '\n'
   if text:
     await msg2admin(text)
 
@@ -1188,11 +1192,13 @@ async def handle_info_callback(query: types.CallbackQuery):
 
 @dp.message_handler(commands=['info'])
 async def check_my_info(message: types.Message, admin=False):
-  current_user, error_msg = await find_user(message)
+  current_user, error_msg = await find_user(message, admin)
   if not current_user:
     return
 
   text = f'👉 ID: <b>{current_user.user_id}</b>'
+  if admin:
+    text += f'\n👉 Имя пользователя: <b>{current_user.username}</b>'
   if not current_user.is_paid:
     text += '\n👉 Подписка: <b>не активна</b>'
     text += f'\n👉 Дневной лимит количества запросов: <b>{current_user.daily_limit_max}</b>'
