@@ -460,9 +460,9 @@ async def file_backup(message: types.Message = None, job=False):
   output_archive = os.path.join("backup", f"backup_{timestr}.tar.gz")
   try:
     await create_tar_gz_archive(output_archive, files_to_archive)
-    print(
-      f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Backup file {output_archive.split('/')[1]} was created successfully\033[0m"
-    )
+    text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Backup file {output_archive.split('/')[1]} was created successfully"
+    print(f"\033[38;2;128;0;128m{text}\033[0m")
+    await msg2admin(text)
     await file_delete(files_to_archive)
   except:
     print(
@@ -969,10 +969,9 @@ async def daily_reset(message: types.Message = None):
       await update_users(target_user)
   await file_write(write_users=True)
   now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
-  print(
-    f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Daily Reset' is completed\033[0m"
-  )
-
+  text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Daily Reset' is completed"
+  print(f"\033[38;2;128;0;128m{text}\033[0m")
+  await msg2admin(text)
 
 @dp.callback_query_handler(lambda query: query.data == 'subscribe')
 async def handle_subscribe_callback(query: types.CallbackQuery):
