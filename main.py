@@ -25,13 +25,18 @@ allowed_group_chats = [
   int(os.environ['allowed_group_2']),
   int(os.environ['allowed_group_3'])
 ]
-admin_chat_id = int(os.environ['admin_chat_id'])
+admin_chats = [
+  int(os.environ['admin_chat_id_1']),
+  int(os.environ['admin_chat_id_2']),
+]
+
 is_test = int(os.environ['is_test'])
 allowed_test_chats = [
   int(os.environ['allowed_test_1']),
   int(os.environ['allowed_test_2']),
   int(os.environ['allowed_test_3'])
 ]
+backup_job = os.environ['backup_job']
 
 bot.set_current(bot)
 nest_asyncio.apply()
@@ -195,7 +200,7 @@ async def check_authority(message, command):
   error_code = 0
   if message.chat.type != types.ChatType.PRIVATE:
     message.from_user.id = message.chat.id
-  if message.from_user.id != admin_chat_id:
+  if message.from_user.id not in admin_chats:
     text = f"❗️Ошибка пользователя {message.from_user.id} ({message.from_user.username}): нет доступа к команде {command}"
     error_code = 4
     await msg2admin(text)
@@ -208,7 +213,8 @@ async def error_handling(message, command, error_msg):
 
 
 async def msg2admin(text):
-  await bot.send_message(admin_chat_id, text, parse_mode="HTML")
+  for admin_chat_id in admin_chats:
+    await bot.send_message(admin_chat_id, text, parse_mode="HTML")
 
 
 async def get_prompt_len(prompt: dict) -> int:
@@ -245,7 +251,7 @@ async def find_user(message, skip_check=False, is_start=False):
       return None, bots_not_allowed
 
   if is_test == 1 and not skip_check:
-    if message.from_user.id not in allowed_test_chats and message.from_user.id != admin_chat_id:
+    if message.from_user.id not in allowed_test_chats and message.from_user.id not in admin_chats:
       await message.answer(test_not_allowed, parse_mode="HTML")
       return None, test_not_allowed
 
@@ -255,7 +261,7 @@ async def find_user(message, skip_check=False, is_start=False):
       await message.answer(user_not_found, parse_mode="HTML")
     return None, user_not_found
   else:
-    if user.is_banned and user.user_id != admin_chat_id:
+    if user.is_banned and user.user_id not in admin_chats:
       await message.answer(user_banned, parse_mode="HTML")
       return None, user_banned
     else:
@@ -462,7 +468,7 @@ async def file_backup(message: types.Message = None, job=False):
     await create_tar_gz_archive(output_archive, files_to_archive)
     text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Backup file {output_archive.split('/')[1]} was created successfully"
     print(f"\033[38;2;128;0;128m{text}\033[0m")
-    await msg2admin(text)
+    #await msg2admin(text)
     await file_delete(files_to_archive)
   except:
     print(
@@ -472,7 +478,8 @@ async def file_backup(message: types.Message = None, job=False):
 
   if not job:
     text = f"❗️Админ {current_user.user_id} ({current_user.username}) запустил резервное копирование в ручном режиме"
-    await msg2admin(text)
+    #await msg2admin(text)
+    await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
 @dp.message_handler(commands=['unpack_123'])
@@ -493,7 +500,8 @@ async def file_unpack(message: types.Message = None):
 
 
 async def maintenance_job():
-  aioschedule.every().day.at('20:59').do(file_backup, job=True)
+  if backup_job:
+    aioschedule.every().day.at('20:59').do(file_backup, job=True)
   aioschedule.every().day.at('21:00').do(daily_reset)
 
 
@@ -589,7 +597,10 @@ async def reset_user(message: types.Message = None):
   await update_users(target_user)
   await file_write(write_users=True)
   text = f"❗️Админ {current_user.user_id} ({current_user.username}) сбросил настройку <b>{what}</b> пользователя {target_user.user_id} ({target_user.username})"
-  await msg2admin(text)
+  #await msg2admin(text)
+  await bot.send_message(current_user.user_id, text, parse_mode="HTML")
+
+  
 
 
 @dp.message_handler(commands=['set_paid_123'])
@@ -624,7 +635,9 @@ async def set_paid(message: types.Message = None):
   await update_users(target_user)
   await file_write(write_users=True)
   text = f"❗️Админ {current_user.user_id} ({current_user.username}) установил для пользователя {target_user.user_id} ({target_user.username}) подписку на {num_days} дней"
-  await msg2admin(text)
+  #await msg2admin(text)
+  await bot.send_message(current_user.user_id, text, parse_mode="HTML")
+
 
   text = f"❗️Вам активирована подписка на {num_days} дней (до {target_user.paid_status_expiry.strftime('%d.%m.%Y')})"
   await bot.send_message(target_user.chat_id, text, parse_mode="HTML")
@@ -655,7 +668,9 @@ async def delete_user(message: types.Message = None):
     del users[user_id]
     await file_write(write_users=True)
     text = f"❗️Админ {current_user.user_id} ({current_user.username}) удалил пользователя {target_user.user_id} ({target_user.username})"
-    await msg2admin(text)
+    #await msg2admin(text)
+    await bot.send_message(current_user.user_id, text, parse_mode="HTML")
+
 
 
 @dp.message_handler(commands=['reset_all_123'])
@@ -679,7 +694,9 @@ async def reset_all(message: types.Message = None):
       await update_users(target_user)
   await file_write(write_users=True)
   text = f"❗️Админ {current_user.user_id} ({current_user.username}) выполнил ручной сброс истории переписки с ботом для всех пользователей"
-  await msg2admin(text)
+  #await msg2admin(text)
+  await bot.send_message(current_user.user_id, text, parse_mode="HTML")
+
 
 
 @dp.message_handler(commands=['list_123'])
@@ -716,7 +733,9 @@ async def list_users(message: types.Message = None):
       else:
         text += '\n'
   if text:
-    await msg2admin(text)
+    #await msg2admin(text)
+    await bot.send_message(current_user.user_id, text, parse_mode="HTML")
+
 
 
 @dp.message_handler(commands=['moderate_all_123'])
@@ -750,7 +769,9 @@ async def moderate_all(message: types.Message = None):
     text = f"❗️Админ {current_user.user_id} ({current_user.username}) убрал ограничения разговора для всех пользователей"
   else:
     text = f"❗️Админ {current_user.user_id} ({current_user.username}) установил ограничения разговора для всех пользователей"
-  await msg2admin(text)
+  #await msg2admin(text)
+  await bot.send_message(current_user.user_id, text, parse_mode="HTML")
+
 
 
 @dp.message_handler(commands=['status_123'])
@@ -799,7 +820,7 @@ async def change_status(message: types.Message = None):
     if status == 0:
       text = f"❗️Админ {current_user.user_id} ({current_user.username}) убрал ограничения разговора для пользователя {target_user.user_id} ({target_user.username})"
     else:
-      text = f"❗️Админ {current_user.user_id} ({current_user.username}) установил ограничения разговора  для пользователя {target_user.user_id} ({target_user.username})"
+      text = f"❗️Админ {current_user.user_id} ({current_user.username}) установил ограничения разговора для пользователя {target_user.user_id} ({target_user.username})"
   else:
     await error_handling(message, command, attribute_type)
     return
@@ -807,7 +828,9 @@ async def change_status(message: types.Message = None):
   await update_users(target_user)
   await file_write(write_users=True)
 
-  await msg2admin(text)
+  #await msg2admin(text)
+  await bot.send_message(current_user.user_id, text, parse_mode="HTML")
+
 
 
 @dp.message_handler(commands=['info_123'])
@@ -952,7 +975,9 @@ async def get_stats(message: types.Message = None):
       mt_avg = mt_num / mt_days
       text += f'\n👉 В среднем <b>{mt_avg:.2f}</b> токенов за <b>{mt_days}</b> дней активности'
 
-  await msg2admin(text)
+  #await msg2admin(text)
+  await bot.send_message(current_user.user_id, text, parse_mode="HTML")
+
 
 
 @dp.message_handler(commands=['daily_reset_123'])
@@ -971,7 +996,7 @@ async def daily_reset(message: types.Message = None):
   now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
   text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Daily Reset' is completed"
   print(f"\033[38;2;128;0;128m{text}\033[0m")
-  await msg2admin(text)
+  #await msg2admin(text)
 
 @dp.callback_query_handler(lambda query: query.data == 'subscribe')
 async def handle_subscribe_callback(query: types.CallbackQuery):
@@ -1235,7 +1260,9 @@ async def check_my_info(message: types.Message, admin=False):
     text += f"\n👉 Последний запрос: <b>{current_user.last_prompt.strftime('%d.%m.%Y')}</b>"
     formatted_num = "{:.2f}".format(current_user.total_revenue)
     text += f'\n👉 Выручка с продаж: <b>{formatted_num}</b> руб.'
-    await msg2admin(text)
+    #await msg2admin(text)
+    await bot.send_message(current_user.user_id, text, parse_mode="HTML")
+
 
 
 @dp.message_handler(lambda message: not message.text.startswith('/'))
