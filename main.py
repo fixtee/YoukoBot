@@ -1364,8 +1364,7 @@ async def default_message_handler(message: types.Message):
   )
   try:
     completion = openai.ChatCompletion.create(
-      #model="gpt-3.5-turbo",
-      model="gpt-3.5-turbo-0613",
+      model="gpt-3.5-turbo",
       messages=current_user.conversation,
       max_tokens=max_tokens_chat,
       temperature=temperature,
