@@ -1360,8 +1360,8 @@ async def default_message_handler(message: types.Message):
   text = 'Ожидайте, формирую ответ...\nПросьба пока не отправлять новые запросы.'
   LastMessage = await message.reply(text)
 
-  max_tokens_chat = current_user.max_tokens - await current_user.get_conversation_len(
-  )
+  max_tokens_chat = current_user.max_tokens - await current_user.get_conversation_len()
+  print(f"\033[38;2;255;0;0mMax Tokens for a Reply {max_tokens_chat}\033[0m") #<<< DEBUG <<<
   try:
     completion = openai.ChatCompletion.create(
       model="gpt-3.5-turbo",
@@ -1415,6 +1415,7 @@ async def default_message_handler(message: types.Message):
   else:
     text = f'❗️Ошибка OpenAI API: {gpt_finish_reason}'
     await message.answer(text, parse_mode="HTML")
+    print(f"\033[38;2;255;0;0mOpenAI API Error: {text}\033[0m") #<<< DEBUG <<<
 
 
 @dp.callback_query_handler(lambda query: query.data == 'reset_me')
