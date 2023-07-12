@@ -892,6 +892,10 @@ async def get_stats(message: types.Message = None):
   if error_code != 0:
     return
 
+  current_user, error_msg = await find_user(message, skip_check=True)
+  if not current_user:
+    return
+    
   count_total = 0
   count_paid = 0
   count_active = 0
@@ -977,7 +981,6 @@ async def get_stats(message: types.Message = None):
 
   #await msg2admin(text)
   await bot.send_message(current_user.user_id, text, parse_mode="HTML")
-
 
 
 @dp.message_handler(commands=['daily_reset_123'])
