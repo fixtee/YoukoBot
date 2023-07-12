@@ -1279,7 +1279,7 @@ async def default_message_handler(message: types.Message):
   current_user, error_msg = await find_user(message)
   if not current_user:
     return
-  elif bot_details.username in message.text:
+  elif f'@{bot_details.username}' in message.text:
     content = message.text.replace(f'@{bot_details.username}', '').strip()
   elif message.chat.type == types.ChatType.PRIVATE:
     content = message.text
