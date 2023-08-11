@@ -16,6 +16,8 @@ from parser import url_article_parser, get_parser_params
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.types.message import ContentType
+from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters.state import State, StatesGroup
 
 bot = Bot(os.environ['bot_token'])
 openai.api_key = os.environ['openai_token']
@@ -38,6 +40,16 @@ allowed_test_chats = [
 ]
 backup_job = os.environ['backup_job']
 
+valid_promo = [
+  os.environ['promo_1'],
+  os.environ['promo_2'],
+]
+
+promo_days = 5
+
+class Promocode(StatesGroup):
+  input = State()
+  
 bot.set_current(bot)
 nest_asyncio.apply()
 storage = MemoryStorage()
@@ -95,6 +107,7 @@ class TelegramUser:
     self.total_tokens = 0
     self.total_revenue = 0
     self.is_moderated = False
+    self.promo_used = []
 
   async def set_me_paid(self, is_paid, subscription_days=None):
     self.is_paid = is_paid
@@ -214,7 +227,8 @@ async def error_handling(message, command, error_msg):
 
 async def msg2admin(text):
   for admin_chat_id in admin_chats:
-    await bot.send_message(admin_chat_id, text, parse_mode="HTML")
+    if admin_chat_id != 0:
+      await bot.send_message(admin_chat_id, text, parse_mode="HTML")
 
 
 async def get_prompt_len(prompt: dict) -> int:
@@ -336,14 +350,13 @@ async def file_read():
       users_data = pickle.load(f)
     users = users_data["users"]
 
-  # Initialize new fields in existing TelegramUser objects
+ # Initialize new fields in existing TelegramUser objects
 
-
-#  for user in users.values():
-#    if not hasattr(user, 'is_moderated'):
-#     user.is_moderated = True
-#     await update_users(user)
-#  await file_write(write_users=True)
+  for user in users.values():
+    if not hasattr(user, 'promo_used'):
+     user.promo_used = []
+     await update_users(user)
+  await file_write(write_users=True)
 
   if os.path.exists(payments_file) and os.path.getsize(payments_file) > 0:
     with open(payments_file, 'rb') as f:
@@ -1021,11 +1034,13 @@ async def get_subscription(message: types.Message, from_menu=False):
                                  callback_data='sub90')
   button3 = InlineKeyboardButton(
     text=f'Подписка на 180 дней - {price180} руб.', callback_data='sub180')
-  keyboard = InlineKeyboardMarkup().add(button1).add(button2).add(button3)
+  button4 = InlineKeyboardButton(
+    text=f'У меня есть промокод...', callback_data='promo')
+  keyboard = InlineKeyboardMarkup().add(button1).add(button2).add(button3).add(button4)
 
   if from_menu:
-    button4 = InlineKeyboardButton(text='<< Назад', callback_data='back1')
-    keyboard.add(button4)
+    button5 = InlineKeyboardButton(text='<< Назад', callback_data='back1')
+    keyboard.add(button5)
     result = await get_menu(1, current_user)
     await bot.edit_message_text(result[0],
                                 message.chat.id,
@@ -1063,7 +1078,38 @@ async def handle_sub180_callback(query: types.CallbackQuery):
   await send_invoice(message, 180)
   await bot.answer_callback_query(query.id)
 
+@dp.callback_query_handler(lambda query: query.data == 'promo')
+async def handle_promo_callback(query: types.CallbackQuery):
+  message = query.message
+  message.from_user.id = query.from_user.id
+  await message.answer("Введите промокод...")
+  await Promocode.input.set()
+  await bot.answer_callback_query(query.id)
 
+@dp.message_handler(state=Promocode.input)
+async def promocode_input_handler(message: types.Message, state: FSMContext):
+  await state.finish()
+  current_user, error_msg = await find_user(message)
+  if not current_user:
+    return
+  promo_entered = message.text.lower()
+  if promo_entered in valid_promo:
+    if promo_entered not in current_user.promo_used:
+      current_user.promo_used.append(promo_entered)
+      await current_user.set_me_paid(True, promo_days)
+      await update_users(current_user)
+      await file_write(write_users=True)
+      text = f'Класс! Вы получили {promo_days} дополнительных дней подписки 😎'
+      await message.answer(text, parse_mode="HTML")
+      text2admin = f'🔔Пользователь {current_user.user_id} ({current_user.username}) применил промокод {promo_entered}'
+      await msg2admin(text2admin)
+    else:
+      text = 'Вы уже использовали данный промокод 😢'
+      await message.answer(text, parse_mode="HTML")
+  else:
+    text = '❗️Неверный промокод'
+    await message.answer(text, parse_mode="HTML")
+  
 @dp.callback_query_handler(lambda query: query.data == 'back1')
 async def handle_back1_callback(query: types.CallbackQuery):
   message = query.message
