@@ -352,11 +352,11 @@ async def file_read():
 
  # Initialize new fields in existing TelegramUser objects
 
-  for user in users.values():
-    if not hasattr(user, 'promo_used'):
-     user.promo_used = []
-     await update_users(user)
-  await file_write(write_users=True)
+#  for user in users.values():
+#    if not hasattr(user, 'promo_used'):
+#     user.promo_used = []
+#     await update_users(user)
+#  await file_write(write_users=True)
 
   if os.path.exists(payments_file) and os.path.getsize(payments_file) > 0:
     with open(payments_file, 'rb') as f:
