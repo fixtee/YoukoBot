@@ -314,8 +314,7 @@ async def get_menu(level=1, current_user=None):
 
   button1 = InlineKeyboardButton(text='Информация о подписке 🔎',
                                  callback_data='info')
-
-  button3 = InlineKeyboardButton(text='Как со мной работать... 📚',
+  button3 = InlineKeyboardButton(text='Как работать с ботом 📚 >>',
                                  callback_data='help')
   button4 = InlineKeyboardButton(text='Очистить историю переписки 🧹',
                                  callback_data='reset_me')
@@ -1035,7 +1034,7 @@ async def get_subscription(message: types.Message, from_menu=False):
   button3 = InlineKeyboardButton(
     text=f'Подписка на 180 дней - {price180} руб.', callback_data='sub180')
   button4 = InlineKeyboardButton(
-    text=f'У меня есть промокод...', callback_data='promo')
+    text='У меня есть промокод...', callback_data='promo')
   keyboard = InlineKeyboardMarkup().add(button1).add(button2).add(button3).add(button4)
 
   if from_menu:
@@ -1242,19 +1241,64 @@ async def successful_payment(message: types.Message):
 async def handle_help_callback(query: types.CallbackQuery):
   message = query.message
   message.from_user.id = query.from_user.id
-  await print_help(message)
+  await print_help(message, True)
   await bot.answer_callback_query(query.id)
 
 
 @dp.message_handler(commands=['help'])
-async def print_help(message: types.Message):
+async def print_help(message: types.Message, from_menu=False):
   current_user, error_msg = await find_user(message)
   if not current_user:
     return
-  text = 'Примеры кейсов для использования бота можно посмотреть тут: https://www.youtube.com/watch?v=42KVu8pmZHo\nРаздел наполняется по мере выхода практикумов. Вопросы и предложения по работе бота направляйте @Notifikat'
+
+  button1 = InlineKeyboardButton(text='Как найти бота 📚',
+                                 callback_data='find_bot')
+  button2 = InlineKeyboardButton(text=' Примеры использования бота в ВЭД 📚',
+                                 callback_data='ved_examples')
+  button3 = InlineKeyboardButton(
+    text='Примеры запросов боту в повседневной жизни 📚', callback_data='daily_use')
+  keyboard = InlineKeyboardMarkup().add(button1).add(button2).add(button3)
+
+  if from_menu:
+    button4 = InlineKeyboardButton(text='<< Назад', callback_data='back1')
+    keyboard.add(button4)
+    result = await get_menu(1, current_user)
+    await bot.edit_message_text(result[0],
+                                message.chat.id,
+                                message.message_id,
+                                parse_mode="HTML",
+                                reply_markup=keyboard)
+  else:
+    text = 'Выберите тему для отображения ссылки на видео с детальным описанием.\nРаздел наполняется по мере выхода практикумов. Вопросы и предложения по работе бота направляйте @Notifikat'
+    await bot.send_message(message.chat.id,
+                           text,
+                           parse_mode="HTML",
+                           reply_markup=keyboard)
+
+@dp.callback_query_handler(lambda query: query.data == 'find_bot')
+async def handle_find_bot(query: types.CallbackQuery):
+  message = query.message
+  message.from_user.id = query.from_user.id
+  text = '📚 Как найти бота:\nhttps://www.youtube.com/watch?v=KE4KcnpdZaw'
   await message.answer(text, parse_mode="HTML")
+  await bot.answer_callback_query(query.id)
 
-
+@dp.callback_query_handler(lambda query: query.data == 'ved_examples')
+async def handle_ved_examples(query: types.CallbackQuery):
+  message = query.message
+  message.from_user.id = query.from_user.id
+  text = '📚 Примеры использования бота в ВЭД:\nhttps://www.youtube.com/watch?v=42KVu8pmZHo'
+  await message.answer(text, parse_mode="HTML")
+  await bot.answer_callback_query(query.id)
+  
+@dp.callback_query_handler(lambda query: query.data == 'daily_use')
+async def handle_daily_use(query: types.CallbackQuery):
+  message = query.message
+  message.from_user.id = query.from_user.id
+  text = '📚 Примеры запросов боту в повседневной жизни:\nhttps://www.youtube.com/watch?v=Z-ppdFDv3ns'
+  await message.answer(text, parse_mode="HTML")
+  await bot.answer_callback_query(query.id)
+  
 @dp.callback_query_handler(lambda query: query.data == 'info')
 async def handle_info_callback(query: types.CallbackQuery):
   message = query.message
@@ -1311,7 +1355,6 @@ async def check_my_info(message: types.Message, admin=False):
     text += f'\n👉 Выручка с продаж: <b>{formatted_num}</b> руб.'
     #await msg2admin(text)
     await bot.send_message(current_user.user_id, text, parse_mode="HTML")
-
 
 
 @dp.message_handler(lambda message: not message.text.startswith('/'))
