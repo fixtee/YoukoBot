@@ -10,6 +10,8 @@ import tarfile
 import tiktoken
 import shutil
 import json
+from pyrogram import Client
+from time import sleep
 from background import keep_alive
 from aiogram import Bot, Dispatcher, types
 from parser import url_article_parser, get_parser_params
@@ -19,9 +21,15 @@ from aiogram.types.message import ContentType
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
+
 bot = Bot(os.environ['bot_token'])
 openai.api_key = os.environ['openai_token']
 payments_token = os.environ['payments_token']
+
+pyrogram_apiid = int(os.environ['pyrogram_api_id'])
+pyrogram_apihash = os.environ['pyrogram_api_hash']
+app = Client("YoukoApp", api_id=pyrogram_apiid, api_hash=pyrogram_apihash)
+
 allowed_group_chats = [
   int(os.environ['allowed_group_1']),
   int(os.environ['allowed_group_2']),
@@ -29,7 +37,7 @@ allowed_group_chats = [
 ]
 admin_chats = [
   int(os.environ['admin_chat_id_1']),
-  int(os.environ['admin_chat_id_2']),
+  int(os.environ['admin_chat_id_2'])
 ]
 
 is_test = int(os.environ['is_test'])
@@ -38,11 +46,19 @@ allowed_test_chats = [
   int(os.environ['allowed_test_2']),
   int(os.environ['allowed_test_3'])
 ]
-backup_job = os.environ['backup_job']
+backup_job = int(os.environ['backup_job'])
+digest_job = int(os.environ['digest_job'])
+digest_chat = int(os.environ['digest_chat_id'])
+digest_init = int(os.environ['digest_init'])
+
+tag1 = os.environ['tag1']
+tag2 = os.environ['tag2']
+tag3 = os.environ['tag3']
+lookback_tags = [tag1, tag2, tag3]
 
 valid_promo = [
   os.environ['promo_1'],
-  os.environ['promo_2'],
+  os.environ['promo_2']
 ]
 
 promo_days = 5
@@ -426,6 +442,142 @@ async def file_delete(files_to_delete):
         f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Error occurred while deleting the file '{file}': {e}\033[0m"
       )
 
+@dp.message_handler(commands=['show_digest_123', 'post_digest_123'])
+async def show_digest(message: types.Message = None, job=False):
+
+  if not job:
+    words = message.text[1:].split()
+    command = words[0]
+    error_code = await check_authority(message, command)
+    if error_code != 0:
+      return
+
+    current_user, error_msg = await find_user(message, skip_check=True)
+    if not current_user:
+      return
+    offset_date = datetime.datetime.now()
+    loopback_date = offset_date.replace(hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=15)
+  else:
+    day_of_month = datetime.datetime.now().day
+    day_of_week = datetime.datetime.now().weekday()
+    if day_of_month == 1 and day_of_week != 5 and day_of_week != 6 or day_of_month == 2 and day_of_week == 1 or day_of_month == 3 and day_of_week == 1:
+      offset_date = datetime.datetime.now().replace(day=1, hour=23, minute=59, second=59, microsecond=999999) - datetime.timedelta(days=1)
+      loopback_date = offset_date.replace(day=16, hour=0, minute=0, second=0, microsecond=0)
+    elif day_of_month == 16 and day_of_week != 5 and day_of_week != 6 or day_of_month == 17 and day_of_week == 1 or day_of_month == 18 and day_of_week == 1:
+      offset_date = datetime.datetime.now().replace(day=15, hour=23, minute=59, second=59, microsecond=999999)
+      loopback_date = offset_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+      return
+
+  digest_message = await compile_digest(digest_chat, offset_date, loopback_date)
+  if digest_message:
+    if job:
+      await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.MARKDOWN, disable_web_page_preview=True)
+      now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
+      text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show Digest' is completed"
+      print(f"\033[38;2;128;0;128m{text}\033[0m")
+    else:
+      if command == 'show_digest_123':
+        await bot.send_message(current_user.user_id, digest_message, parse_mode=types.ParseMode.MARKDOWN, disable_web_page_preview=True)
+      elif command == 'post_digest_123':
+        await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.MARKDOWN, disable_web_page_preview=True)
+
+
+async def compile_digest(chat_id, offset_date, loopback_date):
+  digest_message = ""
+  if offset_date == loopback_date:
+    return digest_message
+    
+  messages_by_tags = {}
+  content = ""
+  if digest_init == 1:
+    init_message = await app.send_message(chat_id, "Инициализация дайджеста")
+    await app.delete_messages(chat_id, init_message.id)
+
+  loopback_counter = 0
+  async for message in app.get_chat_history(chat_id, limit=1000, offset_date=offset_date):
+    if message.date < loopback_date:
+      continue
+    loopback_counter+=1
+    if message.text and message.entities:
+      content = message.text
+      for entity in message.entities:
+        if entity.type.name == "HASHTAG":
+          tag = content[entity.offset : entity.offset + entity.length].lower()
+          if tag in lookback_tags:
+            if tag not in messages_by_tags:
+              messages_by_tags[tag] = []
+            messages_by_tags[tag].append({"content": content, "link":  message.link})
+            break
+    elif message.caption and message.caption_entities:
+      content = message.caption
+      for entity in message.caption_entities:
+        if entity.type.name == "HASHTAG":
+          tag = content[entity.offset : entity.offset + entity.length].lower()
+          if tag in lookback_tags:
+            if tag not in messages_by_tags:
+              messages_by_tags[tag] = []
+            messages_by_tags[tag].append({"content": content, "link":  message.link})
+            break
+            
+  print("Digest loopback counter:", loopback_counter)
+
+  if messages_by_tags:
+    digest_message = "📌 Дайджест активности канала за 2 недели\n (сгенерировано ChatGPT)\n"
+    for tag, messages_list in messages_by_tags.items():
+      messages_list.reverse()
+      if tag == tag1:
+        digest_message += "\n📦 Разобрали, что требуется на товары:\n"
+      elif tag == tag2:
+        digest_message += "\n🎥 Записали видео на темы:\n"
+      elif tag == tag3:
+        digest_message += "\n⚖️ Дали ответы на вопросы:\n"
+      for msg in messages_list:
+        summary = await generate_short_summary(msg['content'])
+        sleep(5)
+        if summary:
+          digest_message += f"- {summary} [Ссылка]({msg['link']})\n"
+
+  return digest_message
+
+async def generate_short_summary(text):
+  content = "Сформируй заголовок из 5 - 7 слов для следующего текста:\n"
+  content += text
+  conversation = []
+  conversation.append({"role": "user", "content": content})
+  try:
+    completion = openai.ChatCompletion.create(
+      model="gpt-3.5-turbo",
+      messages=conversation,
+      max_tokens=500,
+      temperature=temperature,
+    )
+  except (
+      openai.error.APIError,
+      openai.error.APIConnectionError,
+      openai.error.AuthenticationError,
+      openai.error.InvalidAPIType,
+      openai.error.InvalidRequestError,
+      openai.error.OpenAIError,
+      openai.error.PermissionError,
+      openai.error.PermissionError,
+      openai.error.RateLimitError,
+      openai.error.ServiceUnavailableError,
+      openai.error.SignatureVerificationError,
+      openai.error.Timeout,
+      openai.error.TryAgain,
+  ) as e:
+    print(
+      f"\033[38;2;255;0;0mGenerate Short Summary | OpenAI API error: {e}\033[0m"
+    )
+    pass
+
+  gpt_response = ""
+  gpt_finish_reason = completion.choices[0].finish_reason
+  if gpt_finish_reason.lower() == 'stop':
+    gpt_response = completion.choices[0].message.content
+  return gpt_response
+
 
 @dp.message_handler(commands=['backup_123'])
 async def file_backup(message: types.Message = None, job=False):
@@ -512,8 +664,10 @@ async def file_unpack(message: types.Message = None):
 
 
 async def maintenance_job():
-  if backup_job:
+  if backup_job == 1:
     aioschedule.every().day.at('20:59').do(file_backup, job=True)
+  if digest_job == 1:
+    aioschedule.every().day.at('07:00').do(show_digest, job=True)
   aioschedule.every().day.at('21:00').do(daily_reset)
 
 
@@ -1027,14 +1181,10 @@ async def get_subscription(message: types.Message, from_menu=False):
   if not current_user:
     return
 
-  button1 = InlineKeyboardButton(text=f'Подписка на 30 дней - {price30} руб.',
-                                 callback_data='sub30')
-  button2 = InlineKeyboardButton(text=f'Подписка на 90 дней - {price90} руб.',
-                                 callback_data='sub90')
-  button3 = InlineKeyboardButton(
-    text=f'Подписка на 180 дней - {price180} руб.', callback_data='sub180')
-  button4 = InlineKeyboardButton(
-    text='У меня есть промокод...', callback_data='promo')
+  button1 = InlineKeyboardButton(text=f'Подписка на 30 дней - {price30} руб.', callback_data='sub30')
+  button2 = InlineKeyboardButton(text=f'Подписка на 90 дней - {price90} руб.', callback_data='sub90')
+  button3 = InlineKeyboardButton(text=f'Подписка на 180 дней - {price180} руб.', callback_data='sub180')
+  button4 = InlineKeyboardButton(text='У меня есть промокод...', callback_data='promo')
   keyboard = InlineKeyboardMarkup().add(button1).add(button2).add(button3).add(button4)
 
   if from_menu:
@@ -1331,7 +1481,6 @@ async def check_my_info(message: types.Message, admin=False):
     text += f'\n👉 Дата окончания подписки: <b>{time_str}</b>'
     text += '\n👉 Дневной лимит количества запросов: <b>неограничен</b>'
 
-
 #    text += f'\n👉 Максимальная длина одного запроса: <b>{current_user.max_tokens}</b> токенов'
   if not admin:
     await message.answer(text, parse_mode="HTML")
@@ -1364,13 +1513,15 @@ async def default_message_handler(message: types.Message):
   url_yes = False
   orig_url = False
   post_prompt = ' Не оправдывай свои ответы. Если запрос не связан с системным контекстом, то отвечай "Запрос не относится к моей области знаний"'
-
+ 
   current_user, error_msg = await find_user(message)
   if not current_user:
     return
   elif f'@{bot_details.username}' in message.text:
     content = message.text.replace(f'@{bot_details.username}', '').strip()
   elif message.chat.type == types.ChatType.PRIVATE:
+    content = message.text
+  elif message.reply_to_message and message.reply_to_message.from_user.username == bot_details.username:
     content = message.text
   else:
     return
@@ -1453,7 +1604,6 @@ async def default_message_handler(message: types.Message):
   LastMessage = await message.reply(text)
 
   max_tokens_chat = current_user.max_tokens - await current_user.get_conversation_len()
-  print(f"\033[38;2;255;0;0mMax Tokens for a Reply {max_tokens_chat}\033[0m") #<<< DEBUG <<<
   try:
     completion = openai.ChatCompletion.create(
       model="gpt-3.5-turbo",
@@ -1507,7 +1657,7 @@ async def default_message_handler(message: types.Message):
   else:
     text = f'❗️Ошибка OpenAI API: {gpt_finish_reason}'
     await message.answer(text, parse_mode="HTML")
-    print(f"\033[38;2;255;0;0mOpenAI API Error: {text}\033[0m") #<<< DEBUG <<<
+    print(f"\033[38;2;255;0;0mOpenAI API Error: {text}\033[0m")
 
 
 @dp.callback_query_handler(lambda query: query.data == 'reset_me')
@@ -1538,6 +1688,7 @@ async def main():
   await schedule_jobs()
   job_loop = asyncio.get_event_loop()
   job_loop.create_task(run_scheduled_jobs())
+  await app.start()
   await dp.start_polling(timeout=30)
 
 
