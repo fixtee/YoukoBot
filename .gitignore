@@ -7,6 +7,8 @@ pyproject.toml
 users.pkl
 payments.pkl
 orders.pkl
+YoukoApp.session
+YoukoApp.session-journal
 backup/
 
 # Byte-compiled / optimized / DLL files
