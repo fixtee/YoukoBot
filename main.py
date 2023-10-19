@@ -838,7 +838,6 @@ async def delete_user(message: types.Message = None):
     await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
-
 @dp.message_handler(commands=['reset_all_123'])
 async def reset_all(message: types.Message = None):
 
@@ -862,7 +861,6 @@ async def reset_all(message: types.Message = None):
   text = f"❗️Админ {current_user.user_id} ({current_user.username}) выполнил ручной сброс истории переписки с ботом для всех пользователей"
   #await msg2admin(text)
   await bot.send_message(current_user.user_id, text, parse_mode="HTML")
-
 
 
 @dp.message_handler(commands=['list_123'])
@@ -903,7 +901,6 @@ async def list_users(message: types.Message = None):
     await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
-
 @dp.message_handler(commands=['moderate_all_123'])
 async def moderate_all(message: types.Message = None):
 
@@ -937,7 +934,6 @@ async def moderate_all(message: types.Message = None):
     text = f"❗️Админ {current_user.user_id} ({current_user.username}) установил ограничения разговора для всех пользователей"
   #await msg2admin(text)
   await bot.send_message(current_user.user_id, text, parse_mode="HTML")
-
 
 
 @dp.message_handler(commands=['status_123'])
@@ -996,7 +992,6 @@ async def change_status(message: types.Message = None):
 
   #await msg2admin(text)
   await bot.send_message(current_user.user_id, text, parse_mode="HTML")
-
 
 
 @dp.message_handler(commands=['info_123'])
