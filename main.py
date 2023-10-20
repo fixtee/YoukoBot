@@ -349,8 +349,12 @@ async def create_tar_gz_archive(output_file_path, files):
 
 
 async def unarchive_gzip_tar(gzip_file, extract_path):
-  with tarfile.open(gzip_file, 'r:gz') as tar:
-    tar.extractall(extract_path)
+  try:
+    with tarfile.open(gzip_file, 'r:gz') as tar:
+      tar.extractall(extract_path)
+    print(f"\033[38;2;128;0;128mTar.gz archive {gzip_file} unarchived successfully\033[0m")
+  except Exception as e:
+    print(f"\033[38;2;128;0;128mError unarchiving tar.gz archive: {str(e)}\033[0m")
 
 
 async def file_read():
@@ -661,6 +665,31 @@ async def file_unpack(message: types.Message = None):
   archive_file = os.path.join("backup", "backup.tar.gz")
   extracted_files = ""
   await unarchive_gzip_tar(archive_file, extracted_files)
+
+
+@dp.message_handler(commands=['pack_123'])
+async def archive_file(message: types.Message = None):
+
+  command = 'pack_123'
+  error_code = await check_authority(message, command)
+  if error_code != 0:
+    return
+
+  current_user, error_msg = await find_user(message, skip_check=True)
+  if not current_user:
+    return
+    
+  filename = "YoukoApp.session"
+  try:
+      base_name, ext = os.path.splitext(filename)
+      archive_name = base_name + '.tar.gz'
+
+      with tarfile.open(archive_name, 'w:gz') as tar:
+          tar.add(filename, arcname=os.path.basename(filename))
+
+      print(f"\033[38;2;128;0;128mTar.gz archive {archive_name} created successfully\033[0m")
+  except Exception as e:
+      print(f"\033[38;2;128;0;128mError creating tar.gz archive: {str(e)}\033[0m")
 
 
 async def maintenance_job():
@@ -1464,7 +1493,7 @@ async def check_my_info(message: types.Message, admin=False):
   if not current_user.is_paid:
     text += '\n👉 Подписка: <b>не активна</b>'
     text += f'\n👉 Дневной лимит количества запросов: <b>{current_user.daily_limit_max}</b>'
-    utc_time = aioschedule.jobs[1].next_run
+    utc_time = aioschedule.jobs[0].next_run
     moscow_time = utc_time.astimezone(pytz.timezone('Europe/Moscow'))
     time_str = moscow_time.strftime('%d.%m.%Y %H:%M:%S')
     reqs_available = current_user.daily_limit_max - current_user.daily_limit_used
@@ -1523,7 +1552,7 @@ async def default_message_handler(message: types.Message):
 
   if not current_user.is_paid and current_user.daily_limit_used >= current_user.daily_limit_max:
     text = f'❗️Достигнут дневной лимит бесплатных запросов ({current_user.daily_limit_used}).'
-    utc_time = aioschedule.jobs[1].next_run
+    utc_time = aioschedule.jobs[0].next_run
     moscow_time = utc_time.astimezone(pytz.timezone('Europe/Moscow'))
     time_str = moscow_time.strftime('%d.%m.%Y %H:%M:%S')
     text += f'\nСчетчик запросов будет сброшен {time_str} MSK. Также вы можете оформить платную подписку (команда /subscribe), чтобы получить <b>неограниченное</b> количество запросов в день.'
