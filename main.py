@@ -476,15 +476,15 @@ async def show_digest(message: types.Message = None, job=False):
   digest_message = await compile_digest(digest_chat, offset_date, loopback_date)
   if digest_message:
     if job:
-      await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.MARKDOWN, disable_web_page_preview=True)
+      await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
       now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
       text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show Digest' is completed"
       print(f"\033[38;2;128;0;128m{text}\033[0m")
     else:
       if command == 'show_digest_123':
-        await bot.send_message(current_user.user_id, digest_message, parse_mode=types.ParseMode.MARKDOWN, disable_web_page_preview=True)
+        await bot.send_message(current_user.user_id, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
       elif command == 'post_digest_123':
-        await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.MARKDOWN, disable_web_page_preview=True)
+        await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
 
 
 async def compile_digest(chat_id, offset_date, loopback_date):
@@ -540,7 +540,7 @@ async def compile_digest(chat_id, offset_date, loopback_date):
         summary = await generate_short_summary(msg['content'])
         sleep(5)
         if summary:
-          digest_message += f"- {summary} [Ссылка]({msg['link']})\n"
+          digest_message += f"- {summary} <a href=\"{msg['link']}\">Ссылка</a>\n"
 
   return digest_message
 
