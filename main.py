@@ -527,7 +527,7 @@ async def compile_digest(chat_id, offset_date, loopback_date):
   print("Digest loopback counter:", loopback_counter)
 
   if messages_by_tags:
-    digest_message = "📌 Дайджест активности канала за 2 недели\n (сгенерировано ChatGPT)\n"
+    digest_message = "📌 Дайджест активности канала за 2 недели\n (сгенерировано @Notifikat_assist_bot)\n"
     for tag, messages_list in messages_by_tags.items():
       messages_list.reverse()
       if tag == tag1:
