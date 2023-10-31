@@ -535,7 +535,7 @@ async def compile_digest(chat_id, offset_date, loopback_date):
       elif tag == tag2:
         digest_message += "\n🎥 Записали видео на темы:\n"
       elif tag == tag3:
-        digest_message += "\n⚖️ Дали ответы на вопросы:\n"
+        digest_message += "\n⚖️ Ответили на вопросы подписчиков:\n"
       for msg in messages_list:
         summary = await generate_short_summary(msg['content'])
         sleep(5)
