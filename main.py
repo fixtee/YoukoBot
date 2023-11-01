@@ -481,7 +481,7 @@ async def show_useful_digest(message: types.Message=None, job=False):
     if job:
       await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
       now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
-      text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show Digest' is completed"
+      text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show Useful Digest' is completed"
       print(f"\033[38;2;128;0;128m{text}\033[0m")
     else:
       if command == 'show_useful_digest_123':
@@ -513,7 +513,7 @@ async def show_news_digest(message: types.Message=None, job=False):
     if job:
       await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
       now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
-      text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show Digest' is completed"
+      text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show News Digest' is completed"
       print(f"\033[38;2;128;0;128m{text}\033[0m")
     else:
       if command == 'show_news_digest_123':
