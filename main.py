@@ -47,14 +47,17 @@ allowed_test_chats = [
   int(os.environ['allowed_test_3'])
 ]
 backup_job = int(os.environ['backup_job'])
-digest_job = int(os.environ['digest_job'])
+news_digest_job = int(os.environ['news_digest_job'])
+useful_digest_job = int(os.environ['useful_digest_job'])
 digest_chat = int(os.environ['digest_chat_id'])
 digest_init = int(os.environ['digest_init'])
 
-tag1 = os.environ['tag1']
-tag2 = os.environ['tag2']
-tag3 = os.environ['tag3']
-lookback_tags = [tag1, tag2, tag3]
+tag1 = os.environ['useful_tag1']
+tag2 = os.environ['useful_tag2']
+tag3 = os.environ['useful_tag3']
+tag_news = os.environ['news_tag']
+lookback_useful_tags = [tag1, tag2, tag3]
+lookback_news_tags = [tag_news]
 
 valid_promo = [
   os.environ['promo_1'],
@@ -446,8 +449,8 @@ async def file_delete(files_to_delete):
         f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Error occurred while deleting the file '{file}': {e}\033[0m"
       )
 
-@dp.message_handler(commands=['show_digest_123', 'post_digest_123'])
-async def show_digest(message: types.Message = None, job=False):
+@dp.message_handler(commands=['show_useful_digest_123', 'post_useful_digest_123'])
+async def show_useful_digest(message: types.Message=None, job=False):
 
   if not job:
     words = message.text[1:].split()
@@ -473,7 +476,7 @@ async def show_digest(message: types.Message = None, job=False):
     else:
       return
 
-  digest_message = await compile_digest(digest_chat, offset_date, loopback_date)
+  digest_message = await compile_digest(digest_chat, offset_date, loopback_date, "useful")
   if digest_message:
     if job:
       await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
@@ -481,22 +484,62 @@ async def show_digest(message: types.Message = None, job=False):
       text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show Digest' is completed"
       print(f"\033[38;2;128;0;128m{text}\033[0m")
     else:
-      if command == 'show_digest_123':
+      if command == 'show_useful_digest_123':
         await bot.send_message(current_user.user_id, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
-      elif command == 'post_digest_123':
+      elif command == 'post_useful_digest_123':
         await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
 
+@dp.message_handler(commands=['show_news_digest_123', 'post_news_digest_123'])
+async def show_news_digest(message: types.Message=None, job=False):
 
-async def compile_digest(chat_id, offset_date, loopback_date):
+  if not job:
+    words = message.text[1:].split()
+    command = words[0]
+    error_code = await check_authority(message, command)
+    if error_code != 0:
+      return
+
+    current_user, error_msg = await find_user(message, skip_check=True)
+    if not current_user:
+      return
+    offset_date = datetime.datetime.now()
+    loopback_date = offset_date.replace(hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=7)
+  else:
+    offset_date = datetime.datetime.now()
+    loopback_date = offset_date.replace(hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=7)
+
+  digest_message = await compile_digest(digest_chat, offset_date, loopback_date, "news")
+  if digest_message:
+    if job:
+      await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+      now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
+      text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show Digest' is completed"
+      print(f"\033[38;2;128;0;128m{text}\033[0m")
+    else:
+      if command == 'show_news_digest_123':
+        await bot.send_message(current_user.user_id, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+      elif command == 'post_news_digest_123':
+        await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+        
+async def compile_digest(chat_id, offset_date, loopback_date, digest_type="useful"):
   digest_message = ""
   if offset_date == loopback_date:
     return digest_message
-    
+  
   messages_by_tags = {}
   content = ""
   if digest_init == 1:
     init_message = await app.send_message(chat_id, "Инициализация дайджеста")
     await app.delete_messages(chat_id, init_message.id)
+
+  if digest_type == "useful":
+    lookback_tags = lookback_useful_tags
+    digest_message = "📌 Дайджест активности канала за 2 недели\n (сгенерировано @Notifikat_assist_bot)\n"
+  elif digest_type == "news":
+    lookback_tags = lookback_news_tags
+    digest_message = "📌 Дайджест новостей на канале за неделю\n (сгенерировано @Notifikat_assist_bot)\n\n"
+  else:
+    return digest_message
 
   loopback_counter = 0
   async for message in app.get_chat_history(chat_id, limit=1000, offset_date=offset_date):
@@ -527,7 +570,6 @@ async def compile_digest(chat_id, offset_date, loopback_date):
   print("Digest loopback counter:", loopback_counter)
 
   if messages_by_tags:
-    digest_message = "📌 Дайджест активности канала за 2 недели\n (сгенерировано @Notifikat_assist_bot)\n"
     for tag, messages_list in messages_by_tags.items():
       messages_list.reverse()
       if tag == tag1:
@@ -541,6 +583,8 @@ async def compile_digest(chat_id, offset_date, loopback_date):
         sleep(5)
         if summary:
           digest_message += f"- {summary} <a href=\"{msg['link']}\">Ссылка</a>\n"
+  else:
+    digest_message = ""
 
   return digest_message
 
@@ -695,8 +739,10 @@ async def archive_file(message: types.Message = None):
 async def maintenance_job():
   if backup_job == 1:
     aioschedule.every().day.at('20:59').do(file_backup, job=True)
-  if digest_job == 1:
-    aioschedule.every().day.at('07:00').do(show_digest, job=True)
+  if useful_digest_job == 1:
+    aioschedule.every().day.at('07:00').do(show_useful_digest, job=True)
+  if news_digest_job == 1:
+    aioschedule.every().friday.at('14:00').do(show_news_digest, job=True)
   aioschedule.every().day.at('21:00').do(daily_reset)
 
 
