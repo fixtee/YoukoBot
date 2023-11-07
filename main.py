@@ -86,6 +86,10 @@ bot_details = None
 price30 = 100
 price90 = 270
 price180 = 500
+max_tokens_paid = 16000
+max_truncate_paid = 15500
+max_tokens_free = 4000
+max_truncate_free = 3500
 
 user_not_found = '❗️Пользователь не найден. Пожалуйста, запустите команду /start'
 group_not_allowed = '❗️Запуск этого бота в групповом чате не разрешен'
@@ -118,8 +122,8 @@ class TelegramUser:
     self.daily_limit_max = 5
     self.daily_limit_used = 0
     self.conversation = []
-    self.max_tokens = 4000  #1000
-    self.truncate_limit = 3500  #700
+    self.max_tokens = max_tokens_free
+    self.truncate_limit = max_truncate_free
     self.reg_date = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
     self.last_prompt = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
     self.total_prompts = 0
@@ -137,14 +141,14 @@ class TelegramUser:
         today = datetime.datetime.now(pytz.timezone('Europe/Moscow')).date()
         self.paid_status_expiry = today + datetime.timedelta(
           days=subscription_days)
-      self.max_tokens = 4000
-      self.truncate_limit = 3500
+      self.max_tokens = max_tokens_paid
+      self.truncate_limit = max_truncate_paid
       self.daily_limit_max = -1
     else:
       self.is_paid = False
       self.paid_status_expiry = None
-      self.max_tokens = 4000  #1000
-      self.truncate_limit = 3500  #700
+      self.max_tokens = max_tokens_free
+      self.truncate_limit = max_truncate_free
       self.daily_limit_max = 5
       self.daily_limit_used = 0
 
@@ -156,8 +160,8 @@ class TelegramUser:
     if self.is_paid and today > self.paid_status_expiry:
       self.is_paid = False
       self.paid_status_expiry = None
-      self.max_tokens = 4000  #1000
-      self.truncate_limit = 3500  #700
+      self.max_tokens = max_tokens_free
+      self.truncate_limit = max_truncate_free
       self.daily_limit_max = 5
 
     await self.reset_conversation()
@@ -214,7 +218,7 @@ class TelegramUser:
         break
 
   async def get_conversation_len(self) -> int:
-    tiktoken.model.MODEL_TO_ENCODING["gpt-4"] = "cl100k_base"
+    # tiktoken.model.MODEL_TO_ENCODING["gpt-3.5-turbo"] = "cl100k_base"
     encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
     num_tokens = 0
     for msg in self.conversation:
@@ -251,7 +255,7 @@ async def msg2admin(text):
 
 
 async def get_prompt_len(prompt: dict) -> int:
-  tiktoken.model.MODEL_TO_ENCODING["gpt-4"] = "cl100k_base"
+  # tiktoken.model.MODEL_TO_ENCODING["gpt-3.5-turbo"] = "cl100k_base"
   encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
   num_tokens = 0
   # every message follows <im_start>{role/name}\n{content}<im_end>\n
@@ -321,15 +325,13 @@ async def get_menu(level=1, current_user=None):
   if not current_user.is_paid:
     button2 = InlineKeyboardButton(text='Оформить подписку 💎 >>',
                                    callback_data='subscribe')
-    text += f'\n📌 В бесплатной версии доступно <b>{current_user.daily_limit_max}</b> запросов в день. При оформлении платной подписки количество запросов в день <b>неограничено</b>.'
-    #    text += f'\n📌 В бесплатной версии доступно <b>{current_user.daily_limit_max}</b> запросов в день с максимальной длиной запроса не более <b>{current_user.max_tokens}</b> токенов. При оформлении платной подписки количество запросов в день <b>неограничено</b>, а максимальная длина запроса составляет <b>4000</b> токенов.'
+    # text += f'\n📌 В бесплатной версии доступно <b>{current_user.daily_limit_max}</b> запросов в день. При оформлении платной подписки количество запросов в день <b>неограничено</b>.'
+    text += f'\n📌 В бесплатной версии доступно <b>{current_user.daily_limit_max}</b> запросов в день с максимальной длиной сохраняемого контекста не более <b>{current_user.max_tokens}</b> токенов. При оформлении платной подписки количество запросов в день <b>неограничено</b>, а максимальная длина запроса составляет <b>{max_tokens_paid}</b> токенов.'
   else:
     button2 = InlineKeyboardButton(text='Продлить подписку 💎 >>',
                                    callback_data='subscribe')
-    text += '\nУ вас оформлена платная подписка, поэтому количество запросов в день <b>неограничено</b>.'
-
-
-#    text += f'\nУ вас оформлена платная подписка, поэтому количество запросов в день <b>неограничено</b>, а максимальная длина запроса составляет <b>{current_user.max_tokens}</b> токенов.'
+    # text += '\nУ вас оформлена платная подписка, поэтому количество запросов в день <b>неограничено</b>.'
+    text += f'\nУ вас оформлена платная подписка, поэтому количество запросов в день <b>неограничено</b>, а максимальная длина сохраняемого контекста составляет <b>{current_user.max_tokens}</b> токенов.'
 
   button1 = InlineKeyboardButton(text='Информация о подписке 🔎',
                                  callback_data='info')
@@ -580,7 +582,7 @@ async def compile_digest(chat_id, offset_date, loopback_date, digest_type="usefu
         digest_message += "\n⚖️ Ответили на вопросы подписчиков:\n"
       for msg in messages_list:
         summary = await generate_short_summary(msg['content'])
-        sleep(5)
+        sleep(3)
         if summary:
           digest_message += f"- {summary} <a href=\"{msg['link']}\">Ссылка</a>\n"
   else:
@@ -595,7 +597,7 @@ async def generate_short_summary(text):
   conversation.append({"role": "user", "content": content})
   try:
     completion = openai.ChatCompletion.create(
-      model="gpt-3.5-turbo",
+      model="gpt-3.5-turbo-1106",
       messages=conversation,
       max_tokens=500,
       temperature=temperature,
@@ -1544,14 +1546,13 @@ async def check_my_info(message: types.Message, admin=False):
     time_str = moscow_time.strftime('%d.%m.%Y %H:%M:%S')
     reqs_available = current_user.daily_limit_max - current_user.daily_limit_used
     text += f'\n👉 Доступно запросов до {time_str} MSK: <b>{reqs_available}</b>'
-#    text += f'\n👉 Максимальная длина одного запроса: <b>{current_user.max_tokens}</b> токенов'
+    text += f'\n👉 Максимальная длина сохраняемого контекста: <b>{current_user.max_tokens}</b> токенов'
   else:
     text += '\n👉 Подписка: <b>активна</b>'
     time_str = current_user.paid_status_expiry.strftime('%d.%m.%Y')
     text += f'\n👉 Дата окончания подписки: <b>{time_str}</b>'
     text += '\n👉 Дневной лимит количества запросов: <b>неограничен</b>'
-
-#    text += f'\n👉 Максимальная длина одного запроса: <b>{current_user.max_tokens}</b> токенов'
+    text += f'\n👉 Максимальная длина сохраняемого контекста: <b>{current_user.max_tokens}</b> токенов'
   if not admin:
     await message.answer(text, parse_mode="HTML")
   else:
@@ -1601,8 +1602,8 @@ async def default_message_handler(message: types.Message):
     utc_time = aioschedule.jobs[0].next_run
     moscow_time = utc_time.astimezone(pytz.timezone('Europe/Moscow'))
     time_str = moscow_time.strftime('%d.%m.%Y %H:%M:%S')
-    text += f'\nСчетчик запросов будет сброшен {time_str} MSK. Также вы можете оформить платную подписку (команда /subscribe), чтобы получить <b>неограниченное</b> количество запросов в день.'
-    #    text += f'\nСчетчик запросов будет сброшен {time_str} MSK. Также вы можете оформить платную подписку (команда /subscribe), чтобы получить <b>неограниченное</b> количество запросов в день и максимальную длину запроса <b>4000</b> токенов.'
+    # text += f'\nСчетчик запросов будет сброшен {time_str} MSK. Также вы можете оформить платную подписку (команда /subscribe), чтобы получить <b>неограниченное</b> количество запросов в день.'
+    text += f'\nСчетчик запросов будет сброшен {time_str} MSK. Также вы можете оформить платную подписку (команда /subscribe), чтобы получить <b>неограниченное</b> количество запросов в день и максимальную длину сохраняемого контекста <b>{max_tokens_paid}</b> токенов.'
     await message.answer(text, parse_mode="HTML")
     return
 
@@ -1661,9 +1662,9 @@ async def default_message_handler(message: types.Message):
     "content": content
   }])
   if prompt_len > current_user.max_tokens:
-    text = f'❗️Длина запроса {prompt_len} токенов > максимальной длины запроса {current_user.max_tokens}'
-    #    if not current_user.is_paid:
-    #      text += '\n Максимальная длина запроса для платных подписчиков 4000 токенов'
+    text = f'❗️Длина запроса {prompt_len} токенов > максимальной длины сохраняемого контекста {current_user.max_tokens} токенов'
+    if not current_user.is_paid:
+      text += f'\n Максимальная длина сохраняемого контекста для платных подписчиков {max_tokens_paid} токенов'
     await message.answer(text, parse_mode="HTML")
     return
 
@@ -1676,7 +1677,7 @@ async def default_message_handler(message: types.Message):
   max_tokens_chat = current_user.max_tokens - await current_user.get_conversation_len()
   try:
     completion = openai.ChatCompletion.create(
-      model="gpt-3.5-turbo",
+      model="gpt-3.5-turbo-1106",
       messages=current_user.conversation,
       max_tokens=max_tokens_chat,
       temperature=temperature,
