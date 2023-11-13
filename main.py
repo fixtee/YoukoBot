@@ -52,13 +52,36 @@ useful_digest_job = int(os.environ['useful_digest_job'])
 digest_chat = int(os.environ['digest_chat_id'])
 digest_init = int(os.environ['digest_init'])
 
-tag1 = os.environ['useful_tag1']
-tag2 = os.environ['useful_tag2']
-tag3 = os.environ['useful_tag3']
-tag_news = os.environ['news_tag']
-lookback_useful_tags = [tag1, tag2, tag3]
-lookback_news_tags = [tag_news]
+useful_tag1 = os.environ['useful_tag1']
+useful_tag2 = os.environ['useful_tag2']
+useful_tag3 = os.environ['useful_tag3']
 
+lookback_useful_tags = [
+  (useful_tag1, 1),
+  (useful_tag2, 1),
+  (useful_tag3, 1)
+]
+
+news_tag1 = os.environ['news_tag1']
+news_tag11 = os.environ['news_tag11']
+news_tag111 = os.environ['news_tag111']
+news_tag112 = os.environ['news_tag112']
+news_tag113 = os.environ['news_tag113']
+news_tag114 = os.environ['news_tag114']
+news_tag12 = os.environ['news_tag12']
+news_tag13 = os.environ['news_tag13']
+
+lookback_news_tags = [
+  (news_tag1, 1),
+  (news_tag11, 2),
+  (news_tag111, 3),
+  (news_tag112, 3),
+  (news_tag113, 3),
+  (news_tag114, 3),
+  (news_tag12, 2),
+  (news_tag13, 2)
+]
+  
 valid_promo = [
   os.environ['promo_1'],
   os.environ['promo_2']
@@ -522,7 +545,50 @@ async def show_news_digest(message: types.Message=None, job=False):
         await bot.send_message(current_user.user_id, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
       elif command == 'post_news_digest_123':
         await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
-        
+
+async def extract_tags(content, entities, lookback_tags):
+  tags = []
+  last_level = 0
+  for entity in entities:
+    if entity.type.name == "HASHTAG":
+      tag = content[entity.offset: entity.offset + entity.length].lower()
+      for t, level in lookback_tags:
+        if tag == t.lower() and level == last_level + 1:
+          tags.append((t, level))
+          last_level = level
+  return tags
+
+async def update_messages_by_tags(tags, messages_by_tags, content, link):
+  combination = tuple(sorted(tags, key=lambda x: x[1]))
+  if combination not in messages_by_tags:
+    messages_by_tags[combination] = []
+  messages_by_tags[combination].append({"content": content, "link": link})
+
+async def generate_subtag_combinations(lookback_tags):
+  subtags_combinations = []
+  tmp_combinations = {}
+  last_item_level = 0
+  
+  for i in range(len(lookback_tags)):
+    tag, tag_level = lookback_tags[i]
+    
+    if tag_level == 1:
+      subtag_combination = [(tag, tag_level)]
+      tmp_combinations[tag_level] = subtag_combination
+    elif tag_level > last_item_level:
+      subtag_combination = tmp_combinations[tag_level-1] + [(tag, tag_level)]
+      tmp_combinations[tag_level] = subtag_combination
+    elif tag_level <= last_item_level:
+      subtag_combination = tmp_combinations[tag_level-1] + [(tag, tag_level)]
+  
+    tuple_combination = tuple(sorted(subtag_combination, key=lambda x: x[1]))
+    subtags_combinations.append(tuple_combination)
+  
+    last_item_level = tag_level
+  
+  return subtags_combinations
+
+  
 async def compile_digest(chat_id, offset_date, loopback_date, digest_type="useful"):
   digest_message = ""
   if offset_date == loopback_date:
@@ -539,52 +605,53 @@ async def compile_digest(chat_id, offset_date, loopback_date, digest_type="usefu
     digest_message = "📌 Дайджест активности канала за 2 недели\n (сгенерировано @Notifikat_assist_bot)\n"
   elif digest_type == "news":
     lookback_tags = lookback_news_tags
-    digest_message = "📌 Дайджест новостей на канале за неделю\n (сгенерировано @Notifikat_assist_bot)\n\n"
+    digest_message = "📌 Дайджест новостей на канале за неделю\n (сгенерировано @Notifikat_assist_bot)\n"
   else:
     return digest_message
 
   loopback_counter = 0
+  filtered_list_counter = 0
   async for message in app.get_chat_history(chat_id, limit=1000, offset_date=offset_date):
     if message.date < loopback_date:
       continue
     loopback_counter+=1
     if message.text and message.entities:
       content = message.text
-      for entity in message.entities:
-        if entity.type.name == "HASHTAG":
-          tag = content[entity.offset : entity.offset + entity.length].lower()
-          if tag in lookback_tags:
-            if tag not in messages_by_tags:
-              messages_by_tags[tag] = []
-            messages_by_tags[tag].append({"content": content, "link":  message.link})
-            break
+      tags = await extract_tags(content, message.entities, lookback_tags)
     elif message.caption and message.caption_entities:
       content = message.caption
-      for entity in message.caption_entities:
-        if entity.type.name == "HASHTAG":
-          tag = content[entity.offset : entity.offset + entity.length].lower()
-          if tag in lookback_tags:
-            if tag not in messages_by_tags:
-              messages_by_tags[tag] = []
-            messages_by_tags[tag].append({"content": content, "link":  message.link})
-            break
-            
+      tags = await extract_tags(content, message.caption_entities, lookback_tags)
+    if tags:
+      filtered_list_counter+=1
+      await update_messages_by_tags(tags, messages_by_tags, content, message.link)
+
   print("Digest loopback counter:", loopback_counter)
+  print("Filtered messages counter:", filtered_list_counter)
 
   if messages_by_tags:
-    for tag, messages_list in messages_by_tags.items():
-      messages_list.reverse()
-      if tag == tag1:
-        digest_message += "\n📦 Разобрали, что требуется на товары:\n"
-      elif tag == tag2:
-        digest_message += "\n🎥 Записали видео на темы:\n"
-      elif tag == tag3:
-        digest_message += "\n⚖️ Ответили на вопросы подписчиков:\n"
-      for msg in messages_list:
-        summary = await generate_short_summary(msg['content'])
-        sleep(3)
-        if summary:
-          digest_message += f"- {summary} <a href=\"{msg['link']}\">Ссылка</a>\n"
+    subtags_combinations = await generate_subtag_combinations(lookback_tags)
+    for subtags in subtags_combinations:
+      messages_list = messages_by_tags.get(subtags, [])
+      if messages_list:
+        messages_list.reverse()
+        if digest_type == "useful":
+          tag, _ = subtags[0]
+          if tag == useful_tag1:
+            digest_message += "\n📦 Разобрали, что требуется на товары:\n"
+          elif tag == useful_tag2:
+            digest_message += "\n🎥 Записали видео на темы:\n"
+          elif tag == useful_tag3:
+            digest_message += "\n⚖️ Ответили на вопросы подписчиков:\n"
+        else:
+          tags_str = " - ".join(tag[1:] for tag, _ in subtags)
+          tags_str = f"<b>{tags_str }</b>"
+          digest_message += f"\n#️⃣ {tags_str}:\n"
+        for msg in messages_list:
+          summary = await generate_short_summary(msg['content'])
+          sleep(3)
+          #summary = "Test 123"
+          if summary:
+            digest_message += f"- {summary} <a href=\"{msg['link']}\">Ссылка</a>\n"
   else:
     digest_message = ""
 
