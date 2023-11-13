@@ -609,23 +609,24 @@ async def compile_digest(chat_id, offset_date, loopback_date, digest_type="usefu
   else:
     return digest_message
 
-  loopback_counter = 0
+  lookback_counter = 0
   filtered_list_counter = 0
   async for message in app.get_chat_history(chat_id, limit=1000, offset_date=offset_date):
     if message.date < loopback_date:
       continue
-    loopback_counter+=1
+    lookback_counter+=1
+    tags = []
     if message.text and message.entities:
       content = message.text
       tags = await extract_tags(content, message.entities, lookback_tags)
     elif message.caption and message.caption_entities:
       content = message.caption
       tags = await extract_tags(content, message.caption_entities, lookback_tags)
-    if tags:
+    if tags and content:
       filtered_list_counter+=1
       await update_messages_by_tags(tags, messages_by_tags, content, message.link)
 
-  print("Digest loopback counter:", loopback_counter)
+  print(f"Lookback counter for {digest_type} digest:", lookback_counter)
   print("Filtered messages counter:", filtered_list_counter)
 
   if messages_by_tags:
