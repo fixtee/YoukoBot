@@ -556,7 +556,13 @@ async def extract_tags(content, entities, lookback_tags):
         if tag == t.lower() and level == last_level + 1:
           tags.append((t, level))
           last_level = level
-  return tags
+          
+  # Remove hashtags from content in reverse order
+  for entity in reversed(entities):
+    if entity.type.name == "HASHTAG":
+      tag = content[entity.offset: entity.offset + entity.length]
+      content = content[:entity.offset] + content[entity.offset + entity.length:]
+  return tags, content
 
 async def update_messages_by_tags(tags, messages_by_tags, content, link):
   combination = tuple(sorted(tags, key=lambda x: x[1]))
@@ -619,10 +625,12 @@ async def compile_digest(chat_id, offset_date, loopback_date, digest_type="usefu
     content = ""
     if message.text and message.entities:
       content = message.text
-      tags = await extract_tags(content, message.entities, lookback_tags)
+      print(content)
+      tags, content = await extract_tags(content, message.entities, lookback_tags)
+      print(content)
     elif message.caption and message.caption_entities:
       content = message.caption
-      tags = await extract_tags(content, message.caption_entities, lookback_tags)
+      tags, content = await extract_tags(content, message.caption_entities, lookback_tags)
     if tags and content:
       filtered_list_counter+=1
       await update_messages_by_tags(tags, messages_by_tags, content, message.link)
