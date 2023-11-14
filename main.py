@@ -625,9 +625,7 @@ async def compile_digest(chat_id, offset_date, loopback_date, digest_type="usefu
     content = ""
     if message.text and message.entities:
       content = message.text
-      print(content)
       tags, content = await extract_tags(content, message.entities, lookback_tags)
-      print(content)
     elif message.caption and message.caption_entities:
       content = message.caption
       tags, content = await extract_tags(content, message.caption_entities, lookback_tags)
