@@ -558,10 +558,11 @@ async def extract_tags(content, entities, lookback_tags):
           last_level = level
           
   # Remove hashtags from content in reverse order
-  for entity in reversed(entities):
-    if entity.type.name == "HASHTAG":
-      tag = content[entity.offset: entity.offset + entity.length]
-      content = content[:entity.offset] + content[entity.offset + entity.length:]
+  if tags:
+    for entity in reversed(entities):
+      if entity.type.name == "HASHTAG":
+        tag = content[entity.offset: entity.offset + entity.length]
+        content = content[:entity.offset] + content[entity.offset + entity.length:]
   return tags, content
 
 async def update_messages_by_tags(tags, messages_by_tags, content, link):
