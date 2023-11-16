@@ -646,18 +646,18 @@ async def compile_digest(chat_id, offset_date, loopback_date, digest_type="usefu
         if digest_type == "useful":
           tag, _ = subtags[0]
           if tag == useful_tag1:
-            digest_message += "\n📦 Разобрали, что требуется на товары:\n"
+            digest_message += "\n📦 <b>Разобрали, что требуется на товары:</b>\n"
           elif tag == useful_tag2:
-            digest_message += "\n🎥 Записали видео на темы:\n"
+            digest_message += "\n🎥 <b>Записали видео на темы:</b>\n"
           elif tag == useful_tag3:
-            digest_message += "\n⚖️ Ответили на вопросы подписчиков:\n"
+            digest_message += "\n⚖️ <b>Ответили на вопросы подписчиков:</b>\n"
         else:
           tags_str = " - ".join(tag[1:] for tag, _ in subtags)
           tags_str = f"<b>{tags_str }</b>"
           digest_message += f"\n#️⃣ {tags_str}:\n"
         for msg in messages_list:
           summary = await generate_short_summary(msg['content'])
-          sleep(3)
+          sleep(5)
           #summary = "Test 123"
           if summary:
             digest_message += f"- {summary} <a href=\"{msg['link']}\">Ссылка</a>\n"
@@ -696,7 +696,8 @@ async def generate_short_summary(text):
     print(
       f"\033[38;2;255;0;0mGenerate Short Summary | OpenAI API error: {e}\033[0m"
     )
-    pass
+    #pass
+    return
 
   gpt_response = ""
   gpt_finish_reason = completion.choices[0].finish_reason
@@ -1520,13 +1521,21 @@ async def successful_payment(message: types.Message):
       try:
         num_days = int(v.split('_')[1])
       except:
-        pass
+        print(
+          f"\033[38;2;255;0;0mUserID {current_user.user_id} | Num_days conversion problem\033[0m"
+        )
+        #pass
+        return
       await current_user.set_me_paid(True, num_days)
     elif k == "total_amount":
       try:
         revenue = v / 100
       except:
-        pass
+        print(
+          f"\033[38;2;255;0;0mUserID {current_user.user_id} | Revenue calculation problem\033[0m"
+        )
+        #pass
+        return
       current_user.total_revenue += revenue
   await update_users(current_user)
   await file_write(write_users=True, write_payments=True)
@@ -1662,7 +1671,7 @@ async def default_message_handler(message: types.Message):
   post_prompt = ' Не оправдывай свои ответы. Если запрос не связан с системным контекстом, то отвечай "Запрос не относится к моей области знаний"'
  
   current_user, error_msg = await find_user(message)
-  if not current_user:
+  if not current_user or message.sender_chat.type == types.ChatType.CHANNEL:
     return
   elif f'@{bot_details.username}' in message.text:
     content = message.text.replace(f'@{bot_details.username}', '').strip()
@@ -1776,7 +1785,8 @@ async def default_message_handler(message: types.Message):
     print(
       f"\033[38;2;255;0;0mUserID {current_user.user_id} | OpenAI API error: {e}\033[0m"
     )
-    pass
+    #pass
+    return
 
   gpt_finish_reason = completion.choices[0].finish_reason
   if gpt_finish_reason.lower() == 'stop':
