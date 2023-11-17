@@ -109,8 +109,8 @@ bot_details = None
 price30 = 100
 price90 = 270
 price180 = 500
-max_tokens_paid = 16000
-max_truncate_paid = 15500
+max_tokens_paid = 4000
+max_truncate_paid = 3500
 max_tokens_free = 4000
 max_truncate_free = 3500
 
@@ -348,13 +348,17 @@ async def get_menu(level=1, current_user=None):
   if not current_user.is_paid:
     button2 = InlineKeyboardButton(text='Оформить подписку 💎 >>',
                                    callback_data='subscribe')
-    # text += f'\n📌 В бесплатной версии доступно <b>{current_user.daily_limit_max}</b> запросов в день. При оформлении платной подписки количество запросов в день <b>неограничено</b>.'
-    text += f'\n📌 В бесплатной версии доступно <b>{current_user.daily_limit_max}</b> запросов в день с максимальной длиной сохраняемого контекста не более <b>{current_user.max_tokens}</b> токенов. При оформлении платной подписки количество запросов в день <b>неограничено</b>, а максимальная длина запроса составляет <b>{max_tokens_paid}</b> токенов.'
+    if max_tokens_paid == max_tokens_free:
+      text += f'\n📌 В бесплатной версии доступно <b>{current_user.daily_limit_max}</b> запросов в день. При оформлении платной подписки количество запросов в день <b>неограничено</b>.'
+    else:
+      text += f'\n📌 В бесплатной версии доступно <b>{current_user.daily_limit_max}</b> запросов в день с максимальной длиной запроса не более <b>{current_user.max_tokens}</b> токенов. При оформлении платной подписки количество запросов в день <b>неограничено</b>, а максимальная длина запроса составляет <b>{max_tokens_paid}</b> токенов.'
   else:
     button2 = InlineKeyboardButton(text='Продлить подписку 💎 >>',
                                    callback_data='subscribe')
-    # text += '\nУ вас оформлена платная подписка, поэтому количество запросов в день <b>неограничено</b>.'
-    text += f'\nУ вас оформлена платная подписка, поэтому количество запросов в день <b>неограничено</b>, а максимальная длина сохраняемого контекста составляет <b>{current_user.max_tokens}</b> токенов.'
+    if max_tokens_paid == max_tokens_free:
+      text += '\nУ вас оформлена платная подписка, поэтому количество запросов в день <b>неограничено</b>.'
+    else:
+      text += f'\nУ вас оформлена платная подписка, поэтому количество запросов в день <b>неограничено</b>, а максимальная длина запроса составляет <b>{current_user.max_tokens}</b> токенов.'
 
   button1 = InlineKeyboardButton(text='Информация о подписке 🔎',
                                  callback_data='info')
@@ -504,15 +508,21 @@ async def show_useful_digest(message: types.Message=None, job=False):
   digest_message = await compile_digest(digest_chat, offset_date, loopback_date, "useful")
   if digest_message:
     if job:
-      await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+      digest_message = "<emoji id=5379872538866236291>⚡️</emoji> " + digest_message
+      #await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+      await app.send_message(digest_chat, digest_message, disable_web_page_preview=True)
       now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
       text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show Useful Digest' is completed"
       print(f"\033[38;2;128;0;128m{text}\033[0m")
     else:
       if command == 'show_useful_digest_123':
+        digest_message = "📌 " + digest_message
         await bot.send_message(current_user.user_id, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+        #await app.send_message(current_user.user_id, digest_message, disable_web_page_preview=True)
       elif command == 'post_useful_digest_123':
-        await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+        digest_message = "<emoji id=5379872538866236291>⚡️</emoji> " + digest_message
+        #await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+        await app.send_message(digest_chat, digest_message, disable_web_page_preview=True)
 
 @dp.message_handler(commands=['show_news_digest_123', 'post_news_digest_123'])
 async def show_news_digest(message: types.Message=None, job=False):
@@ -536,15 +546,21 @@ async def show_news_digest(message: types.Message=None, job=False):
   digest_message = await compile_digest(digest_chat, offset_date, loopback_date, "news")
   if digest_message:
     if job:
-      await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+      digest_message = "<emoji id=5379872538866236291>⚡️</emoji> " + digest_message
+      #await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+      await app.send_message(digest_chat, digest_message, disable_web_page_preview=True)
       now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
       text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show News Digest' is completed"
       print(f"\033[38;2;128;0;128m{text}\033[0m")
     else:
       if command == 'show_news_digest_123':
+        digest_message = "📌 " + digest_message
         await bot.send_message(current_user.user_id, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+        #await app.send_message(current_user.user_id, digest_message, disable_web_page_preview=True)
       elif command == 'post_news_digest_123':
-        await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+        digest_message = "<emoji id=5379872538866236291>⚡️</emoji> " + digest_message
+        #await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+        await app.send_message(digest_chat, digest_message, disable_web_page_preview=True)
 
 async def extract_tags(content, entities, lookback_tags):
   tags = []
@@ -609,10 +625,10 @@ async def compile_digest(chat_id, offset_date, loopback_date, digest_type="usefu
 
   if digest_type == "useful":
     lookback_tags = lookback_useful_tags
-    digest_message = "📌 Дайджест активности канала за 2 недели\n (сгенерировано @Notifikat_assist_bot)\n"
+    digest_message = "Дайджест активности канала за 2 недели\n (сгенерировано @Notifikat_assist_bot)\n"
   elif digest_type == "news":
     lookback_tags = lookback_news_tags
-    digest_message = "📌 Дайджест новостей на канале за неделю\n (сгенерировано @Notifikat_assist_bot)\n"
+    digest_message = "Дайджест новостей на канале за неделю\n (сгенерировано @Notifikat_assist_bot)\n"
   else:
     return digest_message
 
@@ -1158,12 +1174,12 @@ async def get_info(message: types.Message = None):
 
   content = message.text.replace('/' + command, '').strip()
   try:
-    message.from_user.id = int(content)
+    target_user_id = int(content)
   except:
     await error_handling(message, command, value_conversion)
     return
 
-  await check_my_info(message, True)
+  await check_my_info(message, True, target_user_id)
 
 
 @dp.message_handler(commands=['send_message_123'])
@@ -1615,48 +1631,57 @@ async def handle_info_callback(query: types.CallbackQuery):
 
 
 @dp.message_handler(commands=['info'])
-async def check_my_info(message: types.Message, admin=False):
+async def check_my_info(message: types.Message, admin=False, target_user_id=0):
+
   current_user, error_msg = await find_user(message, admin)
   if not current_user:
     return
 
-  text = f'👉 ID: <b>{current_user.user_id}</b>'
+  if admin and target_user_id != 0:
+    message.from_user.id = target_user_id
+    target_user, error_msg = await find_user(message, admin)
+    if not target_user:
+      return
+  else:
+    target_user = current_user
+
+  text = f'👉 ID: <b>{target_user.user_id}</b>'
   if admin:
-    text += f'\n👉 Имя пользователя: <b>{current_user.username}</b>'
-  if not current_user.is_paid:
+    text += f'\n👉 Имя пользователя: <b>{target_user.username}</b>'
+  if not target_user.is_paid:
     text += '\n👉 Подписка: <b>не активна</b>'
-    text += f'\n👉 Дневной лимит количества запросов: <b>{current_user.daily_limit_max}</b>'
+    text += f'\n👉 Дневной лимит количества запросов: <b>{target_user.daily_limit_max}</b>'
     utc_time = aioschedule.jobs[0].next_run
     moscow_time = utc_time.astimezone(pytz.timezone('Europe/Moscow'))
     time_str = moscow_time.strftime('%d.%m.%Y %H:%M:%S')
-    reqs_available = current_user.daily_limit_max - current_user.daily_limit_used
+    reqs_available = target_user.daily_limit_max - target_user.daily_limit_used
     text += f'\n👉 Доступно запросов до {time_str} MSK: <b>{reqs_available}</b>'
-    text += f'\n👉 Максимальная длина сохраняемого контекста: <b>{current_user.max_tokens}</b> токенов'
+    text += f'\n👉 Максимальная длина запроса: <b>{target_user.max_tokens}</b> токенов'
   else:
     text += '\n👉 Подписка: <b>активна</b>'
-    time_str = current_user.paid_status_expiry.strftime('%d.%m.%Y')
+    time_str = target_user.paid_status_expiry.strftime('%d.%m.%Y')
     text += f'\n👉 Дата окончания подписки: <b>{time_str}</b>'
     text += '\n👉 Дневной лимит количества запросов: <b>неограничен</b>'
-    text += f'\n👉 Максимальная длина сохраняемого контекста: <b>{current_user.max_tokens}</b> токенов'
+    text += f'\n👉 Максимальная длина запроса: <b>{target_user.max_tokens}</b> токенов'
   if not admin:
     await message.answer(text, parse_mode="HTML")
   else:
-    if current_user.is_banned:
+    if target_user.is_banned:
       text += '\n👉 Бан: <b>да</b>'
     else:
       text += '\n👉 Бан: <b>нет</b>'
-    if current_user.is_excluded:
+    if target_user.is_excluded:
       text += '\n👉 Рассылка: <b>нет</b>'
     else:
       text += '\n👉 Рассылка: <b>да</b>'
-    if current_user.is_moderated:
+    if target_user.is_moderated:
       text += '\n👉 Модерация: <b>да</b>'
     else:
       text += '\n👉 Модерация: <b>нет</b>'
 
-    text += f"\n👉 Дата регистрации: <b>{current_user.reg_date.strftime('%d.%m.%Y')}</b>"
-    text += f"\n👉 Последний запрос: <b>{current_user.last_prompt.strftime('%d.%m.%Y')}</b>"
-    formatted_num = "{:.2f}".format(current_user.total_revenue)
+    text += f"\n👉 Дата регистрации: <b>{target_user.reg_date.strftime('%d.%m.%Y')}</b>"
+    text += f"\n👉 Последний запрос: <b>{target_user.last_prompt.strftime('%d.%m.%Y')}</b>"
+    formatted_num = "{:.2f}".format(target_user.total_revenue)
     text += f'\n👉 Выручка с продаж: <b>{formatted_num}</b> руб.'
     #await msg2admin(text)
     await bot.send_message(current_user.user_id, text, parse_mode="HTML")
@@ -1669,9 +1694,8 @@ async def default_message_handler(message: types.Message):
   url_yes = False
   orig_url = False
   post_prompt = ' Не оправдывай свои ответы. Если запрос не связан с системным контекстом, то отвечай "Запрос не относится к моей области знаний"'
- 
   current_user, error_msg = await find_user(message)
-  if not current_user or message.sender_chat.type == types.ChatType.CHANNEL:
+  if not current_user or ( message.sender_chat and message.sender_chat.type == types.ChatType.CHANNEL ):
     return
   elif f'@{bot_details.username}' in message.text:
     content = message.text.replace(f'@{bot_details.username}', '').strip()
@@ -1687,8 +1711,10 @@ async def default_message_handler(message: types.Message):
     utc_time = aioschedule.jobs[0].next_run
     moscow_time = utc_time.astimezone(pytz.timezone('Europe/Moscow'))
     time_str = moscow_time.strftime('%d.%m.%Y %H:%M:%S')
-    # text += f'\nСчетчик запросов будет сброшен {time_str} MSK. Также вы можете оформить платную подписку (команда /subscribe), чтобы получить <b>неограниченное</b> количество запросов в день.'
-    text += f'\nСчетчик запросов будет сброшен {time_str} MSK. Также вы можете оформить платную подписку (команда /subscribe), чтобы получить <b>неограниченное</b> количество запросов в день и максимальную длину сохраняемого контекста <b>{max_tokens_paid}</b> токенов.'
+    if max_tokens_paid == max_tokens_free:
+      text += f'\nСчетчик запросов будет сброшен {time_str} MSK. Также вы можете оформить платную подписку (команда /subscribe), чтобы получить <b>неограниченное</b> количество запросов в день.'
+    else:
+      text += f'\nСчетчик запросов будет сброшен {time_str} MSK. Также вы можете оформить платную подписку (команда /subscribe), чтобы получить <b>неограниченное</b> количество запросов в день и максимальную длину запроса <b>{max_tokens_paid}</b> токенов.'
     await message.answer(text, parse_mode="HTML")
     return
 
@@ -1747,9 +1773,9 @@ async def default_message_handler(message: types.Message):
     "content": content
   }])
   if prompt_len > current_user.max_tokens:
-    text = f'❗️Длина запроса {prompt_len} токенов > максимальной длины сохраняемого контекста {current_user.max_tokens} токенов'
+    text = f'❗️Длина запроса {prompt_len} токенов > максимальной длины запроса {current_user.max_tokens} токенов'
     if not current_user.is_paid:
-      text += f'\n Максимальная длина сохраняемого контекста для платных подписчиков {max_tokens_paid} токенов'
+      text += f'\n Максимальная длина запроса для платных подписчиков {max_tokens_paid} токенов'
     await message.answer(text, parse_mode="HTML")
     return
 
