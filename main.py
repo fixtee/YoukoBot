@@ -1788,7 +1788,7 @@ async def reset_me(message: types.Message):
   await message.answer(text, parse_mode="HTML")
 
 
-@dp.message(F.text)#lambda message: not message.text.startswith('/'))
+@dp.message(F.text)
 async def default_message_handler(message: types.Message):
   article_text = []
   parser_option = 1
