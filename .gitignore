@@ -1,15 +1,14 @@
 #Extra added by Author
 .breakpoints
-.replit
-replit.nix
-poetry.lock
-pyproject.toml
+.env
 users.pkl
 payments.pkl
 orders.pkl
 YoukoApp.session
 YoukoApp.session-journal
 backup/
+journal.log
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -6,3 +6,6 @@ openai
 article-parser
 tiktoken
 html2text
+newspaper3k
+pyrogram
+TgCrypto

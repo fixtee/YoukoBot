@@ -10,51 +10,63 @@ import tarfile
 import tiktoken
 import shutil
 import json
+import logging
 from pyrogram import Client
 from time import sleep
-from background import keep_alive
-from aiogram import Bot, Dispatcher, types
-from parser import url_article_parser, get_parser_params
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram import Bot, Dispatcher, types, enums, F
+from url_parser import url_article_parser, get_parser_params
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.types.message import ContentType
-from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.filters import Command, CommandObject
+from aiogram.utils.chat_action import ChatActionSender
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from dotenv import load_dotenv
 
+# Load environment variables from .env file
+load_dotenv()
 
-bot = Bot(os.environ['bot_token'])
-openai.api_key = os.environ['openai_token']
-payments_token = os.environ['payments_token']
+logfile = "journal.log"
+logging.basicConfig(
+    filename=logfile,
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s")
 
-pyrogram_apiid = int(os.environ['pyrogram_api_id'])
-pyrogram_apihash = os.environ['pyrogram_api_hash']
+nest_asyncio.apply()
+
+bot = Bot(token=os.environ.get('bot_token'))
+dp = Dispatcher()
+openai_client = openai.AsyncOpenAI(api_key=os.environ.get('openai_token'))
+payments_token = os.environ.get('payments_token')
+
+pyrogram_apiid = int(os.environ.get('pyrogram_api_id'))
+pyrogram_apihash = os.environ.get('pyrogram_api_hash')
 app = Client("YoukoApp", api_id=pyrogram_apiid, api_hash=pyrogram_apihash)
 
 allowed_group_chats = [
-  int(os.environ['allowed_group_1']),
-  int(os.environ['allowed_group_2']),
-  int(os.environ['allowed_group_3'])
+  int(os.environ.get('allowed_group_1')),
+  int(os.environ.get('allowed_group_2')),
+  int(os.environ.get('allowed_group_3'))
 ]
 admin_chats = [
-  int(os.environ['admin_chat_id_1']),
-  int(os.environ['admin_chat_id_2'])
+  int(os.environ.get('admin_chat_id_1')),
+  int(os.environ.get('admin_chat_id_2'))
 ]
 
-is_test = int(os.environ['is_test'])
+is_test = int(os.environ.get('is_test'))
 allowed_test_chats = [
-  int(os.environ['allowed_test_1']),
-  int(os.environ['allowed_test_2']),
-  int(os.environ['allowed_test_3'])
+  int(os.environ.get('allowed_test_1')),
+  int(os.environ.get('allowed_test_2')),
+  int(os.environ.get('allowed_test_3'))
 ]
-backup_job = int(os.environ['backup_job'])
-news_digest_job = int(os.environ['news_digest_job'])
-useful_digest_job = int(os.environ['useful_digest_job'])
-digest_chat = int(os.environ['digest_chat_id'])
-digest_init = int(os.environ['digest_init'])
+backup_job = int(os.environ.get('backup_job'))
+news_digest_job = int(os.environ.get('news_digest_job'))
+useful_digest_job = int(os.environ.get('useful_digest_job'))
+digest_chat = int(os.environ.get('digest_chat_id'))
+digest_init = int(os.environ.get('digest_init'))
 
-useful_tag1 = os.environ['useful_tag1']
-useful_tag2 = os.environ['useful_tag2']
-useful_tag3 = os.environ['useful_tag3']
+useful_tag1 = os.environ.get('useful_tag1')
+useful_tag2 = os.environ.get('useful_tag2')
+useful_tag3 = os.environ.get('useful_tag3')
 
 lookback_useful_tags = [
   (useful_tag1, 1),
@@ -62,14 +74,14 @@ lookback_useful_tags = [
   (useful_tag3, 1)
 ]
 
-news_tag1 = os.environ['news_tag1']
-news_tag11 = os.environ['news_tag11']
-news_tag111 = os.environ['news_tag111']
-news_tag112 = os.environ['news_tag112']
-news_tag113 = os.environ['news_tag113']
-news_tag114 = os.environ['news_tag114']
-news_tag12 = os.environ['news_tag12']
-news_tag13 = os.environ['news_tag13']
+news_tag1 = os.environ.get('news_tag1')
+news_tag11 = os.environ.get('news_tag11')
+news_tag111 = os.environ.get('news_tag111')
+news_tag112 = os.environ.get('news_tag112')
+news_tag113 = os.environ.get('news_tag113')
+news_tag114 = os.environ.get('news_tag114')
+news_tag12 = os.environ.get('news_tag12')
+news_tag13 = os.environ.get('news_tag13')
 
 lookback_news_tags = [
   (news_tag1, 1),
@@ -92,10 +104,6 @@ promo_days = 5
 class Promocode(StatesGroup):
   input = State()
   
-bot.set_current(bot)
-nest_asyncio.apply()
-storage = MemoryStorage()
-dp = Dispatcher(bot, storage=storage)
 temperature = 0.1
 users_file = 'users.pkl'
 users = {}
@@ -123,7 +131,6 @@ value_conversion = 'конвертация значения параметра'
 attribute_type = 'тип параметра'
 attribute_value = 'значение параметра'
 empty_message = 'пустое сообщение'
-
 
 class TelegramUser:
 
@@ -229,10 +236,9 @@ class TelegramUser:
     while True:
       conversation_len = await self.get_conversation_len()
       if conversation_len > self.truncate_limit:
-        now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
-        print(
-          f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | UserID {self.user_id} | Conversation size is {conversation_len} tokens, thus it will be truncated\033[0m"
-        )
+        #now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
+        #print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | UserID {self.user_id} | Conversation size is {conversation_len} tokens, thus it will be truncated\033[0m")
+        logging.info(f"UserID {self.user_id} | Conversation size is {conversation_len} tokens, thus it will be truncated")
         if self.is_moderated:
           self.conversation.pop(2)
         else:
@@ -257,8 +263,9 @@ class TelegramUser:
 
 async def check_authority(message, command):
   error_code = 0
-  if message.chat.type != types.ChatType.PRIVATE:
-    message.from_user.id = message.chat.id
+  if message.chat.type != enums.chat_type.ChatType.PRIVATE:
+    from_user = types.User(id=message.chat.id, is_bot=False, first_name='Dummy')
+    message = message.model_copy(update={"from_user": from_user})
   if message.from_user.id not in admin_chats:
     text = f"❗️Ошибка пользователя {message.from_user.id} ({message.from_user.username}): нет доступа к команде {command}"
     error_code = 4
@@ -298,14 +305,15 @@ async def update_users(user):
 
 async def find_user(message, skip_check=False, is_start=False):
   if not skip_check:
-    if message.chat.type != types.ChatType.PRIVATE:
+    if message.chat.type != enums.chat_type.ChatType.PRIVATE:
       if message.chat.id not in allowed_group_chats:
         text = f'❗️Попытка запустить бота в групповом чате {message.chat.id} ({message.chat.title})'
         await msg2admin(text)
         await message.answer(group_not_allowed, parse_mode="HTML")
         return None, group_not_allowed
       else:
-        message.from_user.id = message.chat.id
+        from_user = types.User(id=message.chat.id, is_bot=False, first_name='Dummy')
+        message = message.model_copy(update={"from_user": from_user})
     elif message.from_user.is_bot and message.chat.bot.id != bot_details.id:
       await message.answer(bots_not_allowed, parse_mode="HTML")
       return None, bots_not_allowed
@@ -328,12 +336,7 @@ async def find_user(message, skip_check=False, is_start=False):
       return user, None
 
 
-async def typing(chat_id):
-  typing = types.ChatActions.TYPING
-  await bot.send_chat_action(chat_id=chat_id, action=typing)
-
-
-def insert_html_tag(text, open_tag, close_tag, offset, length):
+async def insert_html_tag(text, open_tag, close_tag, offset, length):
   return text[:offset] + open_tag + text[offset:offset +
                                          length] + close_tag + text[offset +
                                                                     length:]
@@ -366,11 +369,12 @@ async def get_menu(level=1, current_user=None):
                                  callback_data='help')
   button4 = InlineKeyboardButton(text='Очистить историю переписки 🧹',
                                  callback_data='reset_me')
-  keyboard = InlineKeyboardMarkup(row_width=1)
-  keyboard.add(button1)
-  keyboard.add(button2)
-  keyboard.add(button3)
-  keyboard.add(button4)
+  keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+  keyboard.inline_keyboard.append([button1])
+  keyboard.inline_keyboard.append([button2])
+  keyboard.inline_keyboard.append([button3])
+  keyboard.inline_keyboard.append([button4])
+
   return text, keyboard
 
 
@@ -384,9 +388,11 @@ async def unarchive_gzip_tar(gzip_file, extract_path):
   try:
     with tarfile.open(gzip_file, 'r:gz') as tar:
       tar.extractall(extract_path)
-    print(f"\033[38;2;128;0;128mTar.gz archive {gzip_file} unarchived successfully\033[0m")
+    #print(f"\033[38;2;128;0;128mTar.gz archive {gzip_file} was unarchived successfully\033[0m")
+    logging.info(f"Tar.gz archive {gzip_file} was unarchived successfully")
   except Exception as e:
-    print(f"\033[38;2;128;0;128mError unarchiving tar.gz archive: {str(e)}\033[0m")
+    #print(f"\033[38;2;128;0;128mError during unarchiving {gzip_file} archive: {str(e)}\033[0m")
+    logging.error(f"Error during unarchiving {gzip_file} archive: {str(e)}")
 
 
 async def file_read():
@@ -401,8 +407,7 @@ async def file_read():
       users_data = pickle.load(f)
     users = users_data["users"]
 
- # Initialize new fields in existing TelegramUser objects
-
+# Initialize new fields in existing TelegramUser objects
 #  for user in users.values():
 #    if not hasattr(user, 'promo_used'):
 #     user.promo_used = []
@@ -473,13 +478,22 @@ async def file_delete(files_to_delete):
     try:
       os.remove(file)
     except OSError as e:
-      now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
-      print(
-        f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Error occurred while deleting the file '{file}': {e}\033[0m"
-      )
+      #now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
+      #print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | Error occurred while deleting the file '{file}': {e}\033[0m")
+      logging.error(f"Error occurred while deleting the file '{file}': {e}")
 
-@dp.message_handler(commands=['show_useful_digest_123', 'post_useful_digest_123'])
-async def show_useful_digest(message: types.Message=None, job=False):
+
+@dp.message(Command('show_useful_digest_123', 'post_useful_digest_123'))
+async def show_useful_digest(message: types.Message=None, job=False, command: CommandObject=None):
+
+  if command.args is None:
+    lookback_days = 15
+  else:
+    try:
+      lookback_days = int(command.args)
+    except ValueError:
+      await error_handling(message, command, value_conversion)
+      return 
 
   if not job:
     words = message.text[1:].split()
@@ -492,7 +506,7 @@ async def show_useful_digest(message: types.Message=None, job=False):
     if not current_user:
       return
     offset_date = datetime.datetime.now()
-    loopback_date = offset_date.replace(hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=15)
+    loopback_date = offset_date.replace(hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=lookback_days)
   else:
     day_of_month = datetime.datetime.now().day
     day_of_week = datetime.datetime.now().weekday()
@@ -505,28 +519,39 @@ async def show_useful_digest(message: types.Message=None, job=False):
     else:
       return
 
-  digest_message = await compile_digest(digest_chat, offset_date, loopback_date, "useful")
+  digest_message = await compile_digest(digest_chat, offset_date, loopback_date, lookback_days, "useful")
   if digest_message:
     if job:
       digest_message = "<emoji id=5379872538866236291>⚡️</emoji> " + digest_message
-      #await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+      #await bot.send_message(digest_chat, digest_message, parse_mode="HTML", disable_web_page_preview=True)
       await app.send_message(digest_chat, digest_message, disable_web_page_preview=True)
-      now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
-      text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show Useful Digest' is completed"
-      print(f"\033[38;2;128;0;128m{text}\033[0m")
+      #now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
+      #text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show Useful Digest' is completed"
+      #print(f"\033[38;2;128;0;128m{text}\033[0m")
+      logging.info("Job 'Show Useful Digest' is completed")
     else:
       if command == 'show_useful_digest_123':
         digest_message = "📌 " + digest_message
-        await bot.send_message(current_user.user_id, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+        await bot.send_message(current_user.user_id, digest_message, parse_mode="HTML", disable_web_page_preview=True)
         #await app.send_message(current_user.user_id, digest_message, disable_web_page_preview=True)
       elif command == 'post_useful_digest_123':
         digest_message = "<emoji id=5379872538866236291>⚡️</emoji> " + digest_message
-        #await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+        #await bot.send_message(digest_chat, digest_message, parse_mode="HTML", disable_web_page_preview=True)
         await app.send_message(digest_chat, digest_message, disable_web_page_preview=True)
 
-@dp.message_handler(commands=['show_news_digest_123', 'post_news_digest_123'])
-async def show_news_digest(message: types.Message=None, job=False):
 
+@dp.message(Command('show_news_digest_123', 'post_news_digest_123'))
+async def show_news_digest(message: types.Message=None, job=False, command: CommandObject=None):
+
+  if command.args is None:
+    lookback_days = 7
+  else:
+    try:
+      lookback_days = int(command.args)
+    except ValueError:
+      await error_handling(message, command, value_conversion)
+      return 
+    
   if not job:
     words = message.text[1:].split()
     command = words[0]
@@ -538,29 +563,31 @@ async def show_news_digest(message: types.Message=None, job=False):
     if not current_user:
       return
     offset_date = datetime.datetime.now()
-    loopback_date = offset_date.replace(hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=7)
+    loopback_date = offset_date.replace(hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=lookback_days)
   else:
     offset_date = datetime.datetime.now()
-    loopback_date = offset_date.replace(hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=7)
+    loopback_date = offset_date.replace(hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=lookback_days)
 
-  digest_message = await compile_digest(digest_chat, offset_date, loopback_date, "news")
+  digest_message = await compile_digest(digest_chat, offset_date, loopback_date, lookback_days, "news")
   if digest_message:
     if job:
       digest_message = "<emoji id=5379872538866236291>⚡️</emoji> " + digest_message
-      #await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+      #await bot.send_message(digest_chat, digest_message, parse_mode="HTML", disable_web_page_preview=True)
       await app.send_message(digest_chat, digest_message, disable_web_page_preview=True)
-      now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
-      text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show News Digest' is completed"
-      print(f"\033[38;2;128;0;128m{text}\033[0m")
+      #now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
+      #text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Show News Digest' is completed"
+      #print(f"\033[38;2;128;0;128m{text}\033[0m")
+      logging.info("Job 'Show News Digest' is completed")
     else:
       if command == 'show_news_digest_123':
         digest_message = "📌 " + digest_message
-        await bot.send_message(current_user.user_id, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+        await bot.send_message(current_user.user_id, digest_message, parse_mode="HTML", disable_web_page_preview=True)
         #await app.send_message(current_user.user_id, digest_message, disable_web_page_preview=True)
       elif command == 'post_news_digest_123':
         digest_message = "<emoji id=5379872538866236291>⚡️</emoji> " + digest_message
-        #await bot.send_message(digest_chat, digest_message, parse_mode=types.ParseMode.HTML, disable_web_page_preview=True)
+        #await bot.send_message(digest_chat, digest_message, parse_mode=types."HTML", disable_web_page_preview=True)
         await app.send_message(digest_chat, digest_message, disable_web_page_preview=True)
+
 
 async def extract_tags(content, entities, lookback_tags):
   tags = []
@@ -581,11 +608,13 @@ async def extract_tags(content, entities, lookback_tags):
         content = content[:entity.offset] + content[entity.offset + entity.length:]
   return tags, content
 
+
 async def update_messages_by_tags(tags, messages_by_tags, content, link):
   combination = tuple(sorted(tags, key=lambda x: x[1]))
   if combination not in messages_by_tags:
     messages_by_tags[combination] = []
   messages_by_tags[combination].append({"content": content, "link": link})
+
 
 async def generate_subtag_combinations(lookback_tags):
   subtags_combinations = []
@@ -612,7 +641,7 @@ async def generate_subtag_combinations(lookback_tags):
   return subtags_combinations
 
   
-async def compile_digest(chat_id, offset_date, loopback_date, digest_type="useful"):
+async def compile_digest(chat_id, offset_date, loopback_date, lookback_days, digest_type="useful"):
   digest_message = ""
   if offset_date == loopback_date:
     return digest_message
@@ -623,12 +652,19 @@ async def compile_digest(chat_id, offset_date, loopback_date, digest_type="usefu
     init_message = await app.send_message(chat_id, "Инициализация дайджеста")
     await app.delete_messages(chat_id, init_message.id)
 
+  if lookback_days == 15:
+    lookback_text = "2 недели"
+  elif lookback_days == 7:
+    lookback_text = "неделю"
+  else:
+    lookback_text = f"{lookback_days} дней"
+
   if digest_type == "useful":
     lookback_tags = lookback_useful_tags
-    digest_message = "Дайджест активности канала за 2 недели\n (сгенерировано @Notifikat_assist_bot)\n"
+    digest_message = f"Дайджест активности канала за {lookback_text}\n (сгенерировано @Notifikat_assist_bot)\n"
   elif digest_type == "news":
     lookback_tags = lookback_news_tags
-    digest_message = "Дайджест новостей на канале за неделю\n (сгенерировано @Notifikat_assist_bot)\n"
+    digest_message = f"Дайджест новостей на канале за {lookback_text}\n (сгенерировано @Notifikat_assist_bot)\n"
   else:
     return digest_message
 
@@ -650,8 +686,10 @@ async def compile_digest(chat_id, offset_date, loopback_date, digest_type="usefu
       filtered_list_counter+=1
       await update_messages_by_tags(tags, messages_by_tags, content, message.link)
 
-  print(f"Lookback counter for {digest_type} digest:", lookback_counter)
-  print("Filtered messages counter:", filtered_list_counter)
+  #print(f"Lookback counter for {digest_type} digest:", lookback_counter)
+  logging.info(f"Lookback counter for {digest_type} digest: {lookback_counter}")
+  #print("Filtered messages counter:", filtered_list_counter)
+  logging.info(f"Filtered messages counter: {filtered_list_counter}")
 
   if messages_by_tags:
     subtags_combinations = await generate_subtag_combinations(lookback_tags)
@@ -688,30 +726,31 @@ async def generate_short_summary(text):
   conversation = []
   conversation.append({"role": "user", "content": content})
   try:
-    completion = openai.ChatCompletion.create(
-      model="gpt-3.5-turbo-1106",
+    completion = await openai_client.chat.completions.create(
+      model="gpt-3.5-turbo-0125",
       messages=conversation,
       max_tokens=500,
       temperature=temperature,
     )
   except (
-      openai.error.APIError,
-      openai.error.APIConnectionError,
-      openai.error.AuthenticationError,
-      openai.error.InvalidAPIType,
-      openai.error.InvalidRequestError,
-      openai.error.OpenAIError,
-      openai.error.PermissionError,
-      openai.error.PermissionError,
-      openai.error.RateLimitError,
-      openai.error.ServiceUnavailableError,
-      openai.error.SignatureVerificationError,
-      openai.error.Timeout,
-      openai.error.TryAgain,
+      openai.APIConnectionError,
+      openai.APIError,
+      openai.APIResponseValidationError,
+      openai.APITimeoutError,
+      openai.APIResponseValidationError,
+      openai.APIStatusError,
+      openai.AuthenticationError,
+      openai.BadRequestError,
+      openai.ConflictError,
+      openai.InternalServerError,      
+      openai.NotFoundError,
+      openai.OpenAIError,      
+      openai.PermissionDeniedError,      
+      openai.RateLimitError,
+      openai.UnprocessableEntityError,
   ) as e:
-    print(
-      f"\033[38;2;255;0;0mGenerate Short Summary | OpenAI API error: {e}\033[0m"
-    )
+    #print(f"\033[38;2;255;0;0mGenerate Short Summary | OpenAI API error: {e}\033[0m"
+    logging.error(f"Generate Short Summary | OpenAI API error: {e}")
     #pass
     return
 
@@ -722,7 +761,7 @@ async def generate_short_summary(text):
   return gpt_response
 
 
-@dp.message_handler(commands=['backup_123'])
+@dp.message(Command('backup_123'))
 async def file_backup(message: types.Message = None, job=False):
 
   files_to_archive = []
@@ -744,9 +783,8 @@ async def file_backup(message: types.Message = None, job=False):
   try:
     shutil.copyfile(users_file, backup_file)
   except:
-    print(
-      f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {backup_file}\033[0m"
-    )
+    #print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {backup_file}\033[0m")
+    logging.error(f"An error occurred while creating the backup file {backup_file}")
     pass
 
   backup_file = os.path.join("backup", f"{payments_file}")
@@ -754,9 +792,8 @@ async def file_backup(message: types.Message = None, job=False):
   try:
     shutil.copyfile(payments_file, backup_file)
   except:
-    print(
-      f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {backup_file}\033[0m"
-    )
+    #print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {backup_file}\033[0m")
+    logging.error(f"An error occurred while creating the backup file {backup_file}")
     pass
 
   backup_file = os.path.join("backup", f"{orders_file}")
@@ -764,23 +801,22 @@ async def file_backup(message: types.Message = None, job=False):
   try:
     shutil.copyfile(orders_file, backup_file)
   except:
-    print(
-      f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {backup_file}\033[0m"
-    )
+    #print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {backup_file}\033[0m")
+    logging.error(f"An error occurred while creating the backup file {backup_file}")
     pass
 
   timestr = now.strftime('%Y%m%d')
   output_archive = os.path.join("backup", f"backup_{timestr}.tar.gz")
   try:
     await create_tar_gz_archive(output_archive, files_to_archive)
-    text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Backup file {output_archive.split('/')[1]} was created successfully"
-    print(f"\033[38;2;128;0;128m{text}\033[0m")
+    #text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Backup file {output_archive.split('/')[1]} was created successfully"
+    #print(f"\033[38;2;128;0;128m{text}\033[0m")
+    logging.info(f"Backup file {output_archive.split('/')[1]} was created successfully")
     #await msg2admin(text)
     await file_delete(files_to_archive)
   except:
-    print(
-      f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {output_archive}\033[0m"
-    )
+    #print(f"\033[38;2;128;0;128m{now.strftime('%d.%m.%Y %H:%M:%S')} | An error occurred while creating the backup file {output_archive}\033[0m")
+    logging.error(f"An error occurred while creating the backup file {output_archive}")
     pass
 
   if not job:
@@ -789,7 +825,7 @@ async def file_backup(message: types.Message = None, job=False):
     await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
-@dp.message_handler(commands=['unpack_123'])
+@dp.message(Command('unpack_123'))
 async def file_unpack(message: types.Message = None):
 
   command = 'unpack_123'
@@ -806,7 +842,7 @@ async def file_unpack(message: types.Message = None):
   await unarchive_gzip_tar(archive_file, extracted_files)
 
 
-@dp.message_handler(commands=['pack_123'])
+@dp.message(Command('pack_123'))
 async def archive_file(message: types.Message = None):
 
   command = 'pack_123'
@@ -826,19 +862,21 @@ async def archive_file(message: types.Message = None):
       with tarfile.open(archive_name, 'w:gz') as tar:
           tar.add(filename, arcname=os.path.basename(filename))
 
-      print(f"\033[38;2;128;0;128mTar.gz archive {archive_name} created successfully\033[0m")
+      #print(f"\033[38;2;128;0;128mTar.gz archive {archive_name} was created successfully\033[0m")
+      logging.info(f"Tar.gz archive {archive_name} was created successfully")
   except Exception as e:
-      print(f"\033[38;2;128;0;128mError creating tar.gz archive: {str(e)}\033[0m")
+      #print(f"\033[38;2;128;0;128mError during creating {archive_name} archive: {str(e)}\033[0m")
+      logging.error(f"Error during creating {archive_name} archive: {str(e)}")
 
 
 async def maintenance_job():
   if backup_job == 1:
-    aioschedule.every().day.at('20:59').do(file_backup, job=True)
+    aioschedule.every().day.at('23:59').do(file_backup, job=True)
   if useful_digest_job == 1:
-    aioschedule.every().day.at('07:00').do(show_useful_digest, job=True)
+    aioschedule.every().day.at('10:00').do(show_useful_digest, job=True)
   if news_digest_job == 1:
-    aioschedule.every().friday.at('14:00').do(show_news_digest, job=True)
-  aioschedule.every().day.at('21:00').do(daily_reset)
+    aioschedule.every().friday.at('17:00').do(show_news_digest, job=True)
+  aioschedule.every().day.at('00:00').do(daily_reset)
 
 
 async def schedule_jobs():
@@ -852,14 +890,14 @@ async def run_scheduled_jobs():
     await asyncio.sleep(1)
 
 
-@dp.message_handler(commands=['start'])
+@dp.message(Command('start'))
 async def start_command_handler(message: types.Message):
 
   current_user, error_msg = await find_user(message,
                                             skip_check=False,
                                             is_start=True)
   if current_user:
-    if message.chat.type == types.ChatType.PRIVATE:
+    if message.chat.type == enums.chat_type.ChatType.PRIVATE:
       current_user.first_name = message.from_user.first_name
       current_user.last_name = message.from_user.last_name
       current_user.username = message.from_user.username
@@ -870,7 +908,7 @@ async def start_command_handler(message: types.Message):
       current_user.username = message.chat.title
       current_user.chat_id = message.chat.id
   elif error_msg == user_not_found:
-    if message.chat.type == types.ChatType.PRIVATE:
+    if message.chat.type == enums.chat_type.ChatType.PRIVATE:
       current_user = TelegramUser(message.from_user.username,
                                   message.from_user.first_name,
                                   message.from_user.last_name,
@@ -889,7 +927,7 @@ async def start_command_handler(message: types.Message):
   await message.answer(text, parse_mode="HTML", reply_markup=keyboard)
 
 
-@dp.message_handler(commands=['reset_123'])
+@dp.message(Command('reset_123'))
 async def reset_user(message: types.Message = None):
 
   command = 'reset_123'
@@ -903,7 +941,8 @@ async def reset_user(message: types.Message = None):
 
   content = message.text.replace('/' + command, '').strip()
   try:
-    message.from_user.id = int(content.split(':')[0])
+    from_user = types.User(id=int(content.split(':')[0]), is_bot=False, first_name='Dummy')
+    message = message.model_copy(update={"from_user": from_user}) 
     what = content.split(':')[1]
   except:
     await error_handling(message, command, value_conversion)
@@ -937,9 +976,7 @@ async def reset_user(message: types.Message = None):
   await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
   
-
-
-@dp.message_handler(commands=['set_paid_123'])
+@dp.message(Command('set_paid_123'))
 async def set_paid(message: types.Message = None):
 
   command = 'set_paid_123'
@@ -953,7 +990,8 @@ async def set_paid(message: types.Message = None):
 
   content = message.text.replace('/' + command, '').strip()
   try:
-    message.from_user.id = int(content.split(':')[0])
+    from_user = types.User(id=int(content.split(':')[0]), is_bot=False, first_name='Dummy')
+    message = message.model_copy(update={"from_user": from_user}) 
     num_days = int(content.split(':')[1])
   except:
     await error_handling(message, command, value_conversion)
@@ -975,11 +1013,11 @@ async def set_paid(message: types.Message = None):
   await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
-  text = f"❗️Вам активирована подписка на {num_days} дней (до {target_user.paid_status_expiry.strftime('%d.%m.%Y')})"
+  text = f"❗️Ваша подписка продлена на {num_days} дней (до {target_user.paid_status_expiry.strftime('%d.%m.%Y')})"
   await bot.send_message(target_user.chat_id, text, parse_mode="HTML")
 
 
-@dp.message_handler(commands=['delete_123'])
+@dp.message(Command('delete_123'))
 async def delete_user(message: types.Message = None):
 
   command = 'delete_123'
@@ -998,7 +1036,8 @@ async def delete_user(message: types.Message = None):
     await error_handling(message, command, value_conversion)
     return
 
-  message.from_user.id = user_id
+  from_user = types.User(id=user_id, is_bot=False, first_name='Dummy')
+  message = message.model_copy(update={"from_user": from_user}) 
   target_user, error_msg = await find_user(message, skip_check=True)
   if target_user:
     del users[user_id]
@@ -1008,7 +1047,7 @@ async def delete_user(message: types.Message = None):
     await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
-@dp.message_handler(commands=['reset_all_123'])
+@dp.message(Command('reset_all_123'))
 async def reset_all(message: types.Message = None):
 
   command = 'reset_all_123'
@@ -1021,7 +1060,8 @@ async def reset_all(message: types.Message = None):
     return
 
   for user_id in users.keys():
-    message.from_user.id = user_id
+    from_user = types.User(id=user_id, is_bot=False, first_name='Dummy')
+    message = message.model_copy(update={"from_user": from_user}) 
     target_user = None
     target_user, error_msg = await find_user(message, skip_check=True)
     if target_user:
@@ -1033,7 +1073,7 @@ async def reset_all(message: types.Message = None):
   await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
-@dp.message_handler(commands=['list_123'])
+@dp.message(Command('list_123'))
 async def list_users(message: types.Message = None):
 
   command = 'list_123'
@@ -1048,7 +1088,8 @@ async def list_users(message: types.Message = None):
   n = 0
   text = ''
   for user_id in users.keys():
-    message.from_user.id = user_id
+    from_user = types.User(id=user_id, is_bot=False, first_name='Dummy')
+    message = message.model_copy(update={"from_user": from_user}) 
     target_user = None
     target_user, error_msg = await find_user(message, skip_check=True)
     if target_user:
@@ -1071,7 +1112,7 @@ async def list_users(message: types.Message = None):
     await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
-@dp.message_handler(commands=['moderate_all_123'])
+@dp.message(Command('moderate_all_123'))
 async def moderate_all(message: types.Message = None):
 
   command = 'moderate_all_123'
@@ -1091,7 +1132,8 @@ async def moderate_all(message: types.Message = None):
     return
 
   for user_id in users.keys():
-    message.from_user.id = user_id
+    from_user = types.User(id=user_id, is_bot=False, first_name='Dummy')
+    message = message.model_copy(update={"from_user": from_user}) 
     target_user = None
     target_user, error_msg = await find_user(message, skip_check=True)
     if target_user:
@@ -1106,7 +1148,7 @@ async def moderate_all(message: types.Message = None):
   await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
-@dp.message_handler(commands=['status_123'])
+@dp.message(Command('status_123'))
 async def change_status(message: types.Message = None):
 
   command = 'status_123'
@@ -1120,7 +1162,8 @@ async def change_status(message: types.Message = None):
 
   content = message.text.replace('/' + command, '').strip()
   try:
-    message.from_user.id = int(content.split(':')[0])
+    from_user = types.User(id=int(content.split(':')[0]), is_bot=False, first_name='Dummy')
+    message = message.model_copy(update={"from_user": from_user}) 
     attribute = content.split(':')[1]
     status = int(content.split(':')[2])
   except:
@@ -1164,7 +1207,7 @@ async def change_status(message: types.Message = None):
   await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
-@dp.message_handler(commands=['info_123'])
+@dp.message(Command('info_123'))
 async def get_info(message: types.Message = None):
 
   command = 'info_123'
@@ -1182,7 +1225,7 @@ async def get_info(message: types.Message = None):
   await check_my_info(message, True, target_user_id)
 
 
-@dp.message_handler(commands=['send_message_123'])
+@dp.message(Command('send_message_123'))
 async def send_message(message: types.Message = None):
 
   command = 'send_message_123'
@@ -1197,10 +1240,10 @@ async def send_message(message: types.Message = None):
     length = entity.length
 
     if entity.type == "bold":
-      content = insert_html_tag(content, "<b>", "</b>", offset, length)
+      content = await insert_html_tag(content, "<b>", "</b>", offset, length)
       accumulated_offset += len("<b></b>")
     elif entity.type == "italic":
-      content = insert_html_tag(content, "<i>", "</i>", offset, length)
+      content = await insert_html_tag(content, "<i>", "</i>", offset, length)
       accumulated_offset += len("<i></i>")
   content = content.replace('/' + command, '').strip()
 
@@ -1208,14 +1251,15 @@ async def send_message(message: types.Message = None):
     await error_handling(message, command, empty_message)
 
   for user_id in users.keys():
-    message.from_user.id = user_id
+    from_user = types.User(id=user_id, is_bot=False, first_name='Dummy')
+    message = message.model_copy(update={"from_user": from_user}) 
     target_user = None
     target_user, error_msg = await find_user(message, skip_check=True)
     if target_user and not target_user.is_excluded:
       await bot.send_message(target_user.chat_id, content, parse_mode="HTML")
 
 
-@dp.message_handler(commands=['stats_123'])
+@dp.message(Command('stats_123'))
 async def get_stats(message: types.Message = None):
 
   command = 'stats_123'
@@ -1314,33 +1358,38 @@ async def get_stats(message: types.Message = None):
   await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
-@dp.message_handler(commands=['daily_reset_123'])
+@dp.message(Command('daily_reset_123'))
 async def daily_reset(message: types.Message = None):
   if not message:
-    message = types.Message()
+    message = types.Message(chat=types.Chat(id=0,type=enums.chat_type.ChatType.PRIVATE),date=datetime.datetime.now(),message_id=0)
+    from_user = types.User(id=user_id, is_bot=False, first_name='Dummy')
+    message = message.model_copy(update={"from_user": from_user})    
     message.from_user = types.User()
   for user_id in users.keys():
-    message.from_user.id = user_id
+    from_user = types.User(id=user_id, is_bot=False, first_name='Dummy')
+    message = message.model_copy(update={"from_user": from_user})    
     target_user = None
     target_user, error_msg = await find_user(message, skip_check=True)
     if target_user:
       await target_user.reset_check()
       await update_users(target_user)
   await file_write(write_users=True)
-  now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
-  text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Daily Reset' is completed"
-  print(f"\033[38;2;128;0;128m{text}\033[0m")
+  #now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
+  #text = f"{now.strftime('%d.%m.%Y %H:%M:%S')} | Job 'Daily Reset' is completed"
+  #print(f"\033[38;2;128;0;128m{text}\033[0m")
+  logging.info("Job 'Daily Reset' is completed")
   #await msg2admin(text)
 
-@dp.callback_query_handler(lambda query: query.data == 'subscribe')
-async def handle_subscribe_callback(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
+
+@dp.callback_query(F.data == 'subscribe')
+async def handle_subscribe_callback(callback: types.CallbackQuery):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
   await get_subscription(message, True)
-  await bot.answer_callback_query(query.id)
+  await callback.answer()
 
 
-@dp.message_handler(commands=['subscribe'])
+@dp.message(Command('subscribe'))
 async def get_subscription(message: types.Message, from_menu=False):
   current_user, error_msg = await find_user(message)
   if not current_user:
@@ -1350,11 +1399,16 @@ async def get_subscription(message: types.Message, from_menu=False):
   button2 = InlineKeyboardButton(text=f'Подписка на 90 дней - {price90} руб.', callback_data='sub90')
   button3 = InlineKeyboardButton(text=f'Подписка на 180 дней - {price180} руб.', callback_data='sub180')
   button4 = InlineKeyboardButton(text='У меня есть промокод...', callback_data='promo')
-  keyboard = InlineKeyboardMarkup().add(button1).add(button2).add(button3).add(button4)
+  
+  keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+  keyboard.inline_keyboard.append([button1])
+  keyboard.inline_keyboard.append([button2])
+  keyboard.inline_keyboard.append([button3])
+  keyboard.inline_keyboard.append([button4])
 
   if from_menu:
     button5 = InlineKeyboardButton(text='<< Назад', callback_data='back1')
-    keyboard.add(button5)
+    keyboard.inline_keyboard.append([button5])
     result = await get_menu(1, current_user)
     await bot.edit_message_text(result[0],
                                 message.chat.id,
@@ -1369,40 +1423,42 @@ async def get_subscription(message: types.Message, from_menu=False):
                            reply_markup=keyboard)
 
 
-@dp.callback_query_handler(lambda query: query.data == 'sub30')
-async def handle_sub30_callback(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
+@dp.callback_query(F.data == 'sub30')
+async def handle_sub30_callback(callback: types.CallbackQuery):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
   await send_invoice(message, 30)
-  await bot.answer_callback_query(query.id)
+  await callback.answer()
 
 
-@dp.callback_query_handler(lambda query: query.data == 'sub90')
-async def handle_sub190_callback(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
+@dp.callback_query(F.data == 'sub90')
+async def handle_sub190_callback(callback: types.CallbackQuery):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
   await send_invoice(message, 90)
-  await bot.answer_callback_query(query.id)
+  await callback.answer()
 
 
-@dp.callback_query_handler(lambda query: query.data == 'sub180')
-async def handle_sub180_callback(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
+@dp.callback_query(F.data == 'sub180')
+async def handle_sub180_callback(callback: types.CallbackQuery):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
   await send_invoice(message, 180)
-  await bot.answer_callback_query(query.id)
+  await callback.answer()
 
-@dp.callback_query_handler(lambda query: query.data == 'promo')
-async def handle_promo_callback(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
+
+@dp.callback_query(F.data == 'promo')
+async def handle_promo_callback(callback: types.CallbackQuery, state: FSMContext):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
   await message.answer("Введите промокод...")
-  await Promocode.input.set()
-  await bot.answer_callback_query(query.id)
+  await state.set_state(Promocode.input)
+  await callback.answer()
 
-@dp.message_handler(state=Promocode.input)
+
+@dp.message(Promocode.input)
 async def promocode_input_handler(message: types.Message, state: FSMContext):
-  await state.finish()
+  await state.clear()
   current_user, error_msg = await find_user(message)
   if not current_user:
     return
@@ -1415,7 +1471,7 @@ async def promocode_input_handler(message: types.Message, state: FSMContext):
       await file_write(write_users=True)
       text = f'Класс! Вы получили {promo_days} дополнительных дней подписки 😎'
       await message.answer(text, parse_mode="HTML")
-      text2admin = f'🔔Пользователь {current_user.user_id} ({current_user.username}) применил промокод {promo_entered}'
+      text2admin = f'🔔Пользователь {current_user.user_id} ({current_user.username}) применил промокод <b>{promo_entered}</b>'
       await msg2admin(text2admin)
     else:
       text = 'Вы уже использовали данный промокод 😢'
@@ -1424,10 +1480,11 @@ async def promocode_input_handler(message: types.Message, state: FSMContext):
     text = '❗️Неверный промокод'
     await message.answer(text, parse_mode="HTML")
   
-@dp.callback_query_handler(lambda query: query.data == 'back1')
-async def handle_back1_callback(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
+
+@dp.callback_query(F.data == 'back1')
+async def handle_back1_callback(callback: types.CallbackQuery):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
   current_user, error_msg = await find_user(message)
   if not current_user:
     return
@@ -1438,7 +1495,7 @@ async def handle_back1_callback(query: types.CallbackQuery):
                               message.message_id,
                               parse_mode="HTML",
                               reply_markup=keyboard)
-  await bot.answer_callback_query(query.id)
+  await callback.answer()
 
 
 async def send_invoice(message: types.Message, num_days: int):
@@ -1511,13 +1568,13 @@ async def send_invoice(message: types.Message, num_days: int):
 
 
 # pre-checkout  (must be answered in 10 seconds)
-@dp.pre_checkout_query_handler(lambda query: True)
+@dp.pre_checkout_query(lambda query: True)
 async def pre_checkout_query(pre_checkout_q: types.PreCheckoutQuery):
   await bot.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
 
 
 # successful payment
-@dp.message_handler(content_types=ContentType.SUCCESSFUL_PAYMENT)
+@dp.message(F.successful_payment)
 async def successful_payment(message: types.Message):
   num_days: int
   current_user, error_msg = await find_user(message)
@@ -1526,49 +1583,65 @@ async def successful_payment(message: types.Message):
 
   global payments
   text = "💰Новый платеж:"
-  payment_info = message.successful_payment.to_python()
+  payment_info = message.successful_payment
   now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
   key = f"{current_user.user_id}_{now}"
-  payments[key] = payment_info
-  text += f"\n- from user: {current_user.user_id} ({current_user.username})\n- time:{now}"
-  for k, v in payment_info.items():
-    text += f"\n- {k}: {v}"
-    if k == "invoice_payload":
-      try:
-        num_days = int(v.split('_')[1])
-      except:
-        print(
-          f"\033[38;2;255;0;0mUserID {current_user.user_id} | Num_days conversion problem\033[0m"
-        )
-        #pass
-        return
-      await current_user.set_me_paid(True, num_days)
-    elif k == "total_amount":
-      try:
-        revenue = v / 100
-      except:
-        print(
-          f"\033[38;2;255;0;0mUserID {current_user.user_id} | Revenue calculation problem\033[0m"
-        )
-        #pass
-        return
-      current_user.total_revenue += revenue
+  payment_data = {
+    "invoice_payload": payment_info.invoice_payload,
+    "total_amount": payment_info.total_amount,
+    "currency": payment_info.currency,
+    "order_info": payment_info.order_info,
+    "provider_payment_charge_id": payment_info.provider_payment_charge_id,
+    "telegram_payment_charge_id": payment_info.telegram_payment_charge_id,
+  }
+  payments[key] = payment_data
+
+  text += f"\n -from user: {current_user.user_id} ({current_user.username})\n- time: {now.strftime('%Y-%m-%d %H:%M:%S')}"
+
+  text += f"\n- invoice_payload: {payment_info.invoice_payload}"
+  try:
+    num_days = int(payment_info.invoice_payload.split('_')[1])
+  except:
+    #print(f"\033[38;2;255;0;0mUserID {current_user.user_id} | Num_days conversion problem\033[0m")
+    logging.error(f"UserID {current_user.user_id} | Num_days conversion problem")
+    #pass
+    return
+  await current_user.set_me_paid(True, num_days)
+
+  text += f"\n- total_amount: {payment_info.total_amount}"
+  try:
+    revenue = payment_info.total_amount / 100
+  except:
+    #print(f"\033[38;2;255;0;0mUserID {current_user.user_id} | Revenue calculation problem\033[0m")
+    logging.error(f"UserID {current_user.user_id} | Revenue calculation problem")
+    #pass
+    return
+  current_user.total_revenue += revenue
+  
+  text += f"\n- currency: {payment_info.currency}"
+
+  text += f"\n- order_info: {payment_info.order_info}"
+
+  text += f"\n- provider_payment_charge_id: {payment_info.provider_payment_charge_id}"
+
+  text += f"\n- telegram_payment_charge_id: {payment_info.telegram_payment_charge_id}"
+
   await update_users(current_user)
   await file_write(write_users=True, write_payments=True)
   await msg2admin(text)
-  text = f"❗️Платеж завершен. Подписка активирована на {num_days} дней (до {current_user.paid_status_expiry.strftime('%d.%m.%Y')})"
+  text = f"❗️Платеж завершен. Подписка продлена на {num_days} дней (до {current_user.paid_status_expiry.strftime('%d.%m.%Y')})"
   await bot.send_message(current_user.chat_id, text, parse_mode="HTML")
 
 
-@dp.callback_query_handler(lambda query: query.data == 'help')
-async def handle_help_callback(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
+@dp.callback_query(F.data == 'help')
+async def handle_help_callback(callback: types.CallbackQuery):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
   await print_help(message, True)
-  await bot.answer_callback_query(query.id)
+  await callback.answer()
 
 
-@dp.message_handler(commands=['help'])
+@dp.message(Command('help'))
 async def print_help(message: types.Message, from_menu=False):
   current_user, error_msg = await find_user(message)
   if not current_user:
@@ -1580,11 +1653,14 @@ async def print_help(message: types.Message, from_menu=False):
                                  callback_data='ved_examples')
   button3 = InlineKeyboardButton(
     text='Примеры запросов боту в повседневной жизни 📚', callback_data='daily_use')
-  keyboard = InlineKeyboardMarkup().add(button1).add(button2).add(button3)
+  keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+  keyboard.inline_keyboard.append([button1])
+  keyboard.inline_keyboard.append([button2])
+  keyboard.inline_keyboard.append([button3])
 
   if from_menu:
     button4 = InlineKeyboardButton(text='<< Назад', callback_data='back1')
-    keyboard.add(button4)
+    keyboard.inline_keyboard.append([button4])
     result = await get_menu(1, current_user)
     await bot.edit_message_text(result[0],
                                 message.chat.id,
@@ -1598,39 +1674,43 @@ async def print_help(message: types.Message, from_menu=False):
                            parse_mode="HTML",
                            reply_markup=keyboard)
 
-@dp.callback_query_handler(lambda query: query.data == 'find_bot')
-async def handle_find_bot(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
+
+@dp.callback_query(F.data == 'find_bot')
+async def handle_find_bot(callback: types.CallbackQuery):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
   text = '📚 Как найти бота:\nhttps://www.youtube.com/watch?v=KE4KcnpdZaw'
   await message.answer(text, parse_mode="HTML")
-  await bot.answer_callback_query(query.id)
+  await callback.answer()
 
-@dp.callback_query_handler(lambda query: query.data == 'ved_examples')
-async def handle_ved_examples(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
+
+@dp.callback_query(F.data == 'ved_examples')
+async def handle_ved_examples(callback: types.CallbackQuery):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
   text = '📚 Примеры использования бота в ВЭД:\nhttps://www.youtube.com/watch?v=42KVu8pmZHo'
   await message.answer(text, parse_mode="HTML")
-  await bot.answer_callback_query(query.id)
-  
-@dp.callback_query_handler(lambda query: query.data == 'daily_use')
-async def handle_daily_use(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
+  await callback.answer()
+
+
+@dp.callback_query(F.data == 'daily_use')
+async def handle_daily_use(callback: types.CallbackQuery):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
   text = '📚 Примеры запросов боту в повседневной жизни:\nhttps://www.youtube.com/watch?v=Z-ppdFDv3ns'
   await message.answer(text, parse_mode="HTML")
-  await bot.answer_callback_query(query.id)
-  
-@dp.callback_query_handler(lambda query: query.data == 'info')
-async def handle_info_callback(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
+  await callback.answer()
+
+
+@dp.callback_query(F.data == 'info')
+async def handle_info_callback(callback: types.CallbackQuery):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
   await check_my_info(message)
-  await bot.answer_callback_query(query.id)
+  await callback.answer()
 
 
-@dp.message_handler(commands=['info'])
+@dp.message(Command('info'))
 async def check_my_info(message: types.Message, admin=False, target_user_id=0):
 
   current_user, error_msg = await find_user(message, admin)
@@ -1638,7 +1718,8 @@ async def check_my_info(message: types.Message, admin=False, target_user_id=0):
     return
 
   if admin and target_user_id != 0:
-    message.from_user.id = target_user_id
+    from_user = types.User(id=target_user_id, is_bot=False, first_name='Dummy')
+    message = message.model_copy(update={"from_user": from_user})     
     target_user, error_msg = await find_user(message, admin)
     if not target_user:
       return
@@ -1687,7 +1768,27 @@ async def check_my_info(message: types.Message, admin=False, target_user_id=0):
     await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
 
-@dp.message_handler(lambda message: not message.text.startswith('/'))
+@dp.callback_query(F.data == 'reset_me')
+async def handle_reset_callback(callback: types.CallbackQuery):
+  updated_user = callback.message.from_user.model_copy(update={"id": callback.from_user.id})
+  message = callback.message.model_copy(update={"from_user": updated_user})
+  await reset_me(message)
+  await callback.answer()
+
+
+@dp.message(Command('reset_me'))
+async def reset_me(message: types.Message):
+  current_user, error_msg = await find_user(message)
+  if not current_user:
+    return
+  await current_user.reset_conversation()
+  await update_users(current_user)
+  await file_write(write_users=True)
+  text = '❗️История переписки с ботом очищена'
+  await message.answer(text, parse_mode="HTML")
+
+
+@dp.message(F.text)#lambda message: not message.text.startswith('/'))
 async def default_message_handler(message: types.Message):
   article_text = []
   parser_option = 1
@@ -1695,11 +1796,12 @@ async def default_message_handler(message: types.Message):
   orig_url = False
   post_prompt = ' Не оправдывай свои ответы. Если запрос не связан с системным контекстом, то отвечай "Запрос не относится к моей области знаний"'
   current_user, error_msg = await find_user(message)
-  if not current_user or ( message.sender_chat and message.sender_chat.type == types.ChatType.CHANNEL ):
+
+  if not current_user or (message.sender_chat and message.sender_chat.type == enums.chat_type.ChatType.CHANNEL):
     return
   elif f'@{bot_details.username}' in message.text:
     content = message.text.replace(f'@{bot_details.username}', '').strip()
-  elif message.chat.type == types.ChatType.PRIVATE:
+  elif message.chat.type == enums.chat_type.ChatType.PRIVATE:
     content = message.text
   elif message.reply_to_message and message.reply_to_message.from_user.username == bot_details.username:
     content = message.text
@@ -1717,8 +1819,6 @@ async def default_message_handler(message: types.Message):
       text += f'\nСчетчик запросов будет сброшен {time_str} MSK. Также вы можете оформить платную подписку (команда /subscribe), чтобы получить <b>неограниченное</b> количество запросов в день и максимальную длину запроса <b>{max_tokens_paid}</b> токенов.'
     await message.answer(text, parse_mode="HTML")
     return
-
-  await typing(message.chat.id)
 
   if current_user.is_paid:
     if message.entities is not None:
@@ -1785,82 +1885,65 @@ async def default_message_handler(message: types.Message):
   text = 'Ожидайте, формирую ответ...\nПросьба пока не отправлять новые запросы.'
   LastMessage = await message.reply(text)
 
-  max_tokens_chat = current_user.max_tokens - await current_user.get_conversation_len()
-  try:
-    completion = openai.ChatCompletion.create(
-      model="gpt-3.5-turbo-1106",
-      messages=current_user.conversation,
-      max_tokens=max_tokens_chat,
-      temperature=temperature,
-    )
-  except (
-      openai.error.APIError,
-      openai.error.APIConnectionError,
-      openai.error.AuthenticationError,
-      openai.error.InvalidAPIType,
-      openai.error.InvalidRequestError,
-      openai.error.OpenAIError,
-      openai.error.PermissionError,
-      openai.error.PermissionError,
-      openai.error.RateLimitError,
-      openai.error.ServiceUnavailableError,
-      openai.error.SignatureVerificationError,
-      openai.error.Timeout,
-      openai.error.TryAgain,
-  ) as e:
-    print(
-      f"\033[38;2;255;0;0mUserID {current_user.user_id} | OpenAI API error: {e}\033[0m"
-    )
-    #pass
-    return
+  async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
+    max_tokens_chat = current_user.max_tokens - await current_user.get_conversation_len()
+    try:
+      completion = await openai_client.chat.completions.create(
+        model="gpt-3.5-turbo-0125",
+        messages=current_user.conversation,
+        max_tokens=max_tokens_chat,
+        temperature=temperature,
+      )
+    except (
+        openai.APIConnectionError,
+        openai.APIError,
+        openai.APIResponseValidationError,
+        openai.APITimeoutError,
+        openai.APIResponseValidationError,
+        openai.APIStatusError,
+        openai.AuthenticationError,
+        openai.BadRequestError,
+        openai.ConflictError,
+        openai.InternalServerError,      
+        openai.NotFoundError,
+        openai.OpenAIError,      
+        openai.PermissionDeniedError,      
+        openai.RateLimitError,
+        openai.UnprocessableEntityError,
+    ) as e:
+      #print(f"\033[38;2;255;0;0mUserID {current_user.user_id} | OpenAI API error: {e}\033[0m")
+      logging.error(f"UserID {current_user.user_id} | OpenAI API error: {e}")
+      #pass
+      return
 
-  gpt_finish_reason = completion.choices[0].finish_reason
-  if gpt_finish_reason.lower() == 'stop':
-    gpt_response = completion.choices[0].message.content
-    current_user.conversation.append({
-      "role": "assistant",
-      "content": gpt_response
-    })
-    if not current_user.is_paid:
-      current_user.daily_limit_used += 1
-      gpt_response += f'\n({current_user.daily_limit_used}/{current_user.daily_limit_max})'
-    await bot.edit_message_text(chat_id=current_user.chat_id,
-                                message_id=LastMessage.message_id,
-                                text=gpt_response)
-    current_user.total_prompts += 1
-    response_len = await get_prompt_len(prompt=[{
-      "role": "assistant",
-      "content": gpt_response
-    }])
-    current_user.total_tokens += prompt_len + response_len
-    current_user.last_prompt = datetime.datetime.now(
-      pytz.timezone('Europe/Moscow'))
-    await update_users(current_user)
-    await file_write(write_users=True)
-  else:
-    text = f'❗️Ошибка OpenAI API: {gpt_finish_reason}'
-    await message.answer(text, parse_mode="HTML")
-    print(f"\033[38;2;255;0;0mOpenAI API Error: {text}\033[0m")
-
-
-@dp.callback_query_handler(lambda query: query.data == 'reset_me')
-async def handle_reset_callback(query: types.CallbackQuery):
-  message = query.message
-  message.from_user.id = query.from_user.id
-  await reset_me(message)
-  await bot.answer_callback_query(query.id)
-
-
-@dp.message_handler(commands=['reset_me'])
-async def reset_me(message: types.Message):
-  current_user, error_msg = await find_user(message)
-  if not current_user:
-    return
-  await current_user.reset_conversation()
-  await update_users(current_user)
-  await file_write(write_users=True)
-  text = '❗️История переписки с ботом очищена'
-  await message.answer(text, parse_mode="HTML")
+    gpt_finish_reason = completion.choices[0].finish_reason
+    if gpt_finish_reason.lower() == 'stop':
+      gpt_response = completion.choices[0].message.content
+      current_user.conversation.append({
+        "role": "assistant",
+        "content": gpt_response
+      })
+      if not current_user.is_paid:
+        current_user.daily_limit_used += 1
+        gpt_response += f'\n({current_user.daily_limit_used}/{current_user.daily_limit_max})'
+      await bot.edit_message_text(chat_id=current_user.chat_id,
+                                  message_id=LastMessage.message_id,
+                                  text=gpt_response)
+      current_user.total_prompts += 1
+      response_len = await get_prompt_len(prompt=[{
+        "role": "assistant",
+        "content": gpt_response
+      }])
+      current_user.total_tokens += prompt_len + response_len
+      current_user.last_prompt = datetime.datetime.now(
+        pytz.timezone('Europe/Moscow'))
+      await update_users(current_user)
+      await file_write(write_users=True)
+    else:
+      text = f'❗️Ошибка OpenAI API: {gpt_finish_reason}'
+      await message.answer(text, parse_mode="HTML")
+      #print(f"\033[38;2;255;0;0mOpenAI API Error: {text}\033[0m")
+      logging.error(f"OpenAI API error: {text}")
 
 
 async def main():
@@ -1872,10 +1955,10 @@ async def main():
   job_loop = asyncio.get_event_loop()
   job_loop.create_task(run_scheduled_jobs())
   await app.start()
-  await dp.start_polling(timeout=30)
+  await bot.delete_webhook(drop_pending_updates=True)
+  await dp.start_polling(bot)
 
 
 if __name__ == '__main__':
-  keep_alive()
   main_loop = asyncio.get_event_loop()
   main_loop.run_until_complete(main())
