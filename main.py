@@ -1362,7 +1362,7 @@ async def get_stats(message: types.Message = None):
 async def daily_reset(message: types.Message = None):
   if not message:
     message = types.Message(chat=types.Chat(id=0,type=enums.chat_type.ChatType.PRIVATE),date=datetime.datetime.now(),message_id=0)
-    from_user = types.User(id=user_id, is_bot=False, first_name='Dummy')
+    from_user = types.User(id=0, is_bot=False, first_name='Dummy')
     message = message.model_copy(update={"from_user": from_user})    
     message.from_user = types.User()
   for user_id in users.keys():
@@ -1788,7 +1788,7 @@ async def reset_me(message: types.Message):
   await message.answer(text, parse_mode="HTML")
 
 
-@dp.message(F.text)
+@dp.message(F.text & ~F.text.startswith('/'))
 async def default_message_handler(message: types.Message):
   article_text = []
   parser_option = 1
