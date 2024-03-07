@@ -877,6 +877,7 @@ async def maintenance_job():
   if news_digest_job == 1:
     aioschedule.every().friday.at('17:00').do(show_news_digest, job=True)
   aioschedule.every().day.at('00:00').do(daily_reset)
+  aioschedule.every().monday.at('00:01').do(clear_logfile)
 
 
 async def schedule_jobs():
@@ -1363,8 +1364,7 @@ async def daily_reset(message: types.Message = None):
   if not message:
     message = types.Message(chat=types.Chat(id=0,type=enums.chat_type.ChatType.PRIVATE),date=datetime.datetime.now(),message_id=0)
     from_user = types.User(id=0, is_bot=False, first_name='Dummy')
-    message = message.model_copy(update={"from_user": from_user})    
-    message.from_user = types.User()
+    message = message.model_copy(update={"from_user": from_user})
   for user_id in users.keys():
     from_user = types.User(id=user_id, is_bot=False, first_name='Dummy')
     message = message.model_copy(update={"from_user": from_user})    
@@ -1786,6 +1786,32 @@ async def reset_me(message: types.Message):
   await file_write(write_users=True)
   text = '❗️История переписки с ботом очищена'
   await message.answer(text, parse_mode="HTML")
+
+
+@dp.message(Command('clear_log'))
+async def clear_logfile(message: types.Message=None, Job=False):
+  if Job:
+    max_size_bytes = 1024 * 1024
+  else:
+    max_size_bytes = 0
+
+  if not os.path.exists(logfile):
+    raise FileNotFoundError(f"Log file '{logfile}' does not exist.")
+
+  # Get file size
+  file_size = os.path.getsize(logfile)
+
+  if file_size > max_size_bytes:
+    logging.info(f"Log file '{logfile}' exceeded size limit ({max_size_bytes} bytes). Cleaning...")
+    try:
+      with open(logfile, "w") as f:
+        # Clear the file content
+        f.write("")
+      logging.info(f"Log file '{logfile}' cleaned successfully.")
+    except Exception as e:
+      logging.error(f"Error cleaning log file: {e}")
+  else:
+    logging.info(f"Log file has size of {file_size} bytes")
 
 
 @dp.message(F.text & ~F.text.startswith('/'))
