@@ -486,7 +486,7 @@ async def file_delete(files_to_delete):
 @dp.message(Command('show_useful_digest_123', 'post_useful_digest_123'))
 async def show_useful_digest(message: types.Message=None, job=False, command: CommandObject=None):
 
-  if command.args is None:
+  if command and command.args is None:
     lookback_days = 15
   else:
     try:
