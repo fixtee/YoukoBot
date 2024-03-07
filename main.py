@@ -1915,7 +1915,7 @@ async def default_message_handler(message: types.Message):
     max_tokens_chat = current_user.max_tokens - await current_user.get_conversation_len()
     try:
       completion = await openai_client.chat.completions.create(
-        model="gpt-3.5-turbo-0125",
+        model="gpt-3.5-turbo",
         messages=current_user.conversation,
         max_tokens=max_tokens_chat,
         temperature=temperature,
