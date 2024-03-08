@@ -1817,9 +1817,9 @@ async def clear_logfile(message: types.Message=None, Job=False):
         # Clear the file content
         f.write("")
       logging.info(f"Log file '{logfile}' cleaned successfully.")
-      
-      text = f"❗️Админ {current_user.user_id} ({current_user.username}) очистил журнал сообщений"
-      await msg2admin(text)
+      if not Job:
+        text = f"❗️Админ {current_user.user_id} ({current_user.username}) очистил журнал сообщений"
+        await msg2admin(text)
     except Exception as e:
       logging.error(f"Error cleaning log file: {e}")
   else:
