@@ -877,12 +877,12 @@ async def maintenance_job():
   if news_digest_job == 1:
     aioschedule.every().friday.at('17:00').do(show_news_digest, job=True)
   aioschedule.every().day.at('00:00').do(daily_reset)
-  aioschedule.every().monday.at('00:01').do(clear_logfile)
+  aioschedule.every().monday.at('00:01').do(clear_logfile, Job=True)
 
 
 async def schedule_jobs():
   aioschedule.clear()
-  asyncio.create_task(maintenance_job())
+  await maintenance_job()
 
 
 async def run_scheduled_jobs():
@@ -1788,12 +1788,21 @@ async def reset_me(message: types.Message):
   await message.answer(text, parse_mode="HTML")
 
 
-@dp.message(Command('clear_log'))
+@dp.message(Command('clear_log_123'))
 async def clear_logfile(message: types.Message=None, Job=False):
+
   if Job:
     max_size_bytes = 1024 * 1024
   else:
     max_size_bytes = 0
+    command = 'clear_log_123'
+    error_code = await check_authority(message, command)
+    if error_code != 0:
+      return
+    
+    current_user, error_msg = await find_user(message, skip_check=True)
+    if not current_user:
+      return
 
   if not os.path.exists(logfile):
     raise FileNotFoundError(f"Log file '{logfile}' does not exist.")
@@ -1808,10 +1817,13 @@ async def clear_logfile(message: types.Message=None, Job=False):
         # Clear the file content
         f.write("")
       logging.info(f"Log file '{logfile}' cleaned successfully.")
+      
+      text = f"❗️Админ {current_user.user_id} ({current_user.username}) очистил журнал сообщений"
+      await msg2admin(text)
     except Exception as e:
       logging.error(f"Error cleaning log file: {e}")
   else:
-    logging.info(f"Log file has size of {file_size} bytes")
+    logging.info(f"Log file has size {file_size} bytes")
 
 
 @dp.message(F.text & ~F.text.startswith('/'))
