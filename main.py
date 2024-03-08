@@ -58,7 +58,10 @@ allowed_test_chats = [
   int(os.environ.get('allowed_test_2')),
   int(os.environ.get('allowed_test_3'))
 ]
+
 backup_job = int(os.environ.get('backup_job'))
+max_backup_age_days = int(os.environ.get('max_backup_age_days'))
+
 news_digest_job = int(os.environ.get('news_digest_job'))
 useful_digest_job = int(os.environ.get('useful_digest_job'))
 digest_chat = int(os.environ.get('digest_chat_id'))
@@ -73,7 +76,6 @@ lookback_useful_tags = [
   (useful_tag2, 1),
   (useful_tag3, 1)
 ]
-
 news_tag1 = os.environ.get('news_tag1')
 news_tag11 = os.environ.get('news_tag11')
 news_tag111 = os.environ.get('news_tag111')
@@ -486,14 +488,14 @@ async def file_delete(files_to_delete):
 @dp.message(Command('show_useful_digest_123', 'post_useful_digest_123'))
 async def show_useful_digest(message: types.Message=None, job=False, command: CommandObject=None):
 
-  if command and command.args is None:
-    lookback_days = 15
-  else:
+  if command and command.args:
     try:
       lookback_days = int(command.args)
     except ValueError:
       await error_handling(message, command, value_conversion)
-      return 
+      return
+  else:
+    lookback_days = 15
 
   if not job:
     words = message.text[1:].split()
@@ -543,14 +545,14 @@ async def show_useful_digest(message: types.Message=None, job=False, command: Co
 @dp.message(Command('show_news_digest_123', 'post_news_digest_123'))
 async def show_news_digest(message: types.Message=None, job=False, command: CommandObject=None):
 
-  if command.args is None:
-    lookback_days = 7
-  else:
+  if command and command.args:
     try:
       lookback_days = int(command.args)
     except ValueError:
       await error_handling(message, command, value_conversion)
       return 
+  else:
+    lookback_days = 7
     
   if not job:
     words = message.text[1:].split()
@@ -764,6 +766,8 @@ async def generate_short_summary(text):
 @dp.message(Command('backup_123'))
 async def file_backup(message: types.Message = None, job=False):
 
+  await delete_old_backups()
+
   files_to_archive = []
 
   if not job:
@@ -824,6 +828,21 @@ async def file_backup(message: types.Message = None, job=False):
     #await msg2admin(text)
     await bot.send_message(current_user.user_id, text, parse_mode="HTML")
 
+async def delete_old_backups():
+    backup_dir = "backup"
+    now = datetime.datetime.now()
+    cutoff_date = now - datetime.timedelta(days=max_backup_age_days)
+
+    for filename in os.listdir(backup_dir):
+      file_path = os.path.join(backup_dir, filename)
+        
+      # If it's a file (not a directory) and older than the cutoff date, delete it
+      if os.path.isfile(file_path) and os.path.getmtime(file_path) < cutoff_date.timestamp():
+        try:
+          os.remove(file_path)
+          logging.info(f"Deleted old backup file {filename}")
+        except Exception as e:
+          logging.error(f"Error deleting old backup file {filename}: {e}")
 
 @dp.message(Command('unpack_123'))
 async def file_unpack(message: types.Message = None):
@@ -1819,7 +1838,7 @@ async def clear_logfile(message: types.Message=None, Job=False):
       logging.info(f"Log file '{logfile}' cleaned successfully.")
       if not Job:
         text = f"❗️Админ {current_user.user_id} ({current_user.username}) очистил журнал сообщений"
-        await msg2admin(text)
+        await bot.send_message(current_user.user_id, text, parse_mode="HTML")
     except Exception as e:
       logging.error(f"Error cleaning log file: {e}")
   else:
