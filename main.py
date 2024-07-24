@@ -119,10 +119,10 @@ bot_details = None
 price30 = 100
 price90 = 270
 price180 = 500
-max_tokens_paid = 4000
-max_truncate_paid = 3500
-max_tokens_free = 4000
-max_truncate_free = 3500
+max_tokens_paid = 4096
+max_truncate_paid = 128000 - 4096
+max_tokens_free = 4096
+max_truncate_free = 128000 - 4096
 
 user_not_found = '❗️Пользователь не найден. Пожалуйста, запустите команду /start'
 group_not_allowed = '❗️Запуск этого бота в групповом чате не разрешен'
@@ -249,8 +249,7 @@ class TelegramUser:
         break
 
   async def get_conversation_len(self) -> int:
-    # tiktoken.model.MODEL_TO_ENCODING["gpt-3.5-turbo"] = "cl100k_base"
-    encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+    encoding = tiktoken.encoding_for_model("gpt-4-turbo")
     num_tokens = 0
     for msg in self.conversation:
       # every message follows <im_start>{role/name}\n{content}<im_end>\n
@@ -287,8 +286,7 @@ async def msg2admin(text):
 
 
 async def get_prompt_len(prompt: dict) -> int:
-  # tiktoken.model.MODEL_TO_ENCODING["gpt-3.5-turbo"] = "cl100k_base"
-  encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+  encoding = tiktoken.encoding_for_model("gpt-4-turbo")
   num_tokens = 0
   # every message follows <im_start>{role/name}\n{content}<im_end>\n
   num_tokens += 5
@@ -729,7 +727,7 @@ async def generate_short_summary(text):
   conversation.append({"role": "user", "content": content})
   try:
     completion = await openai_client.chat.completions.create(
-      model="gpt-3.5-turbo-0125",
+      model="gpt-4o-mini",
       messages=conversation,
       max_tokens=500,
       temperature=temperature,
@@ -1943,12 +1941,13 @@ async def default_message_handler(message: types.Message):
   LastMessage = await message.reply(text)
 
   async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-    max_tokens_chat = current_user.max_tokens - await current_user.get_conversation_len()
+    # max_tokens_chat = current_user.max_tokens - await current_user.get_conversation_len()
     try:
       completion = await openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",
         messages=current_user.conversation,
-        max_tokens=max_tokens_chat,
+        # max_tokens=max_tokens_chat,
+        max_tokens=current_user.max_tokens,
         temperature=temperature,
       )
     except (
