@@ -14,7 +14,6 @@ import logging
 from pyrogram import Client
 from time import sleep
 from aiogram import Bot, Dispatcher, types, enums, F
-from url_parser import url_article_parser, get_parser_params
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command, CommandObject
 from aiogram.utils.chat_action import ChatActionSender
@@ -1845,10 +1844,6 @@ async def clear_logfile(message: types.Message=None, Job=False):
 
 @dp.message(F.text & ~F.text.startswith('/'))
 async def default_message_handler(message: types.Message):
-  article_text = []
-  parser_option = 1
-  url_yes = False
-  orig_url = False
   post_prompt = ' Не оправдывай свои ответы. Если запрос не связан с системным контекстом, то отвечай "Запрос не относится к моей области знаний"'
   current_user, error_msg = await find_user(message)
 
@@ -1874,51 +1869,6 @@ async def default_message_handler(message: types.Message):
       text += f'\nСчетчик запросов будет сброшен {time_str} MSK. Также вы можете оформить платную подписку (команда /subscribe), чтобы получить <b>неограниченное</b> количество запросов в день и максимальную длину запроса <b>{max_tokens_paid}</b> токенов.'
     await message.answer(text, parse_mode="HTML")
     return
-
-  if current_user.is_paid:
-    if message.entities is not None:
-      for entity in message.entities:
-        if entity.type == "url":
-          url = message.text[entity.offset:entity.offset + entity.length]
-          if url.startswith('http'):
-            params = await get_parser_params(message.text)
-            parser_option = params['parser_option']
-            orig_url = params['orig_url']
-            article_text = await url_article_parser(
-              url=url, parser_option=parser_option, orig_url=orig_url)
-            content = content.replace(f'parser_option{parser_option}',
-                                      '').strip()
-            content = content.replace('orig_url', '').strip()
-            if article_text != '':
-              content = content.replace(url, '')
-              content += "\n" + article_text
-
-    if message.reply_to_message:
-      if message.reply_to_message.entities is not None:
-        for entity in message.reply_to_message.entities:
-          if entity.type == "url":
-            url = message.reply_to_message.text[entity.offset: entity.offset + entity.length]
-            if url.startswith('http'):
-              params = await get_parser_params(message.text)
-              parser_option = params['parser_option']
-              orig_url = params['orig_url']
-              article_text = await url_article_parser(url=url, parser_option=parser_option, orig_url=orig_url)
-              content = content.replace(f'parser_option{parser_option}', '').strip()
-              content = content.replace('orig_url', '').strip()
-              if article_text != '':
-                url_yes = True
-                content += "\n" + article_text
-                break
-      
-      if not url_yes:
-        if message.reply_to_message.text:
-          reply_to_text = message.reply_to_message.text
-          if bot_details.username in reply_to_text:
-            reply_to_text = reply_to_text.replace(f'@{bot_details.username}', '').strip()
-          if reply_to_text:
-            content += "\n" + reply_to_text
-        elif message.reply_to_message.caption:
-          content += "\n" + message.reply_to_message.caption
         
   if current_user.is_moderated:
     content += post_prompt
@@ -1946,7 +1896,6 @@ async def default_message_handler(message: types.Message):
       completion = await openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=current_user.conversation,
-        # max_tokens=max_tokens_chat,
         max_tokens=current_user.max_tokens,
         temperature=temperature,
       )
