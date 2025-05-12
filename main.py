@@ -1103,6 +1103,7 @@ async def list_users(message: types.Message = None):
     return
 
   n = 0
+  i = 0
   text = ''
   for user_id in users.keys():
     from_user = types.User(id=user_id, is_bot=False, first_name='Dummy')
@@ -1111,6 +1112,7 @@ async def list_users(message: types.Message = None):
     target_user, error_msg = await find_user(message, skip_check=True)
     if target_user:
       n += 1
+      i += 1
       fullname = ''
       if target_user.first_name:
         fullname += target_user.first_name
@@ -1124,6 +1126,10 @@ async def list_users(message: types.Message = None):
         text += ' - 💎\n'
       else:
         text += '\n'
+      if i == 100 and text:
+        await bot.send_message(current_user.user_id, text, parse_mode="HTML")
+        text = ''
+        i = 0
   if text:
     #await msg2admin(text)
     await bot.send_message(current_user.user_id, text, parse_mode="HTML")
